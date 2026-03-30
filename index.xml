@@ -8,4 +8,12 @@
       </version>
     </reapack>
   </category>
+  <category name="Standard Clipper">
+    <reapack name="StandardClipper.jsfx" type="effect" desc="Standard Clipper">
+      <version name="1.5" author="Israel Torres Mayoral" time="2026-03-29T18:44:36.123Z">
+        <changelog></changelog>
+        <source>https://raw.githubusercontent.com/israelftci/REISR/refs/heads/main/StandardClipper.jsfx</source>
+      </version>
+    </reapack>
+  </category>
 </index>
