@@ -1,0 +1,521 @@
+desc: Spectrum Analyzer (Multimeter)
+
+slider1:0<0,1,.01>-Attack (ms)
+slider2:800<1,10000,1>Release (ms)
+slider3:-50<-90,0,1>db Min
+slider4:-26<-64,0,1>-Gain dB
+slider5:0<-50,0,1>db Max
+slider6:1<0,3,1{Basic,Standart,Advanced (High DSP),Full (Full DSP Load)}>Details
+slider8:0<0,1,1{Off,On}>Peak Hold
+
+@gfx 900 500
+
+@init
+
+  LOG2      = log(2);
+  LOG10     = log(10);
+  PI        = $pi;
+  TWO_PI    = 2.0 * $pi;
+
+  FREQ_MIN      = 20.0;
+  FREQ_MAX      = 20000.0;
+  BANDS_PER_OCT = 6;
+  NUM_BANDS     = ceil(BANDS_PER_OCT * log(FREQ_MAX / FREQ_MIN) / LOG2);
+  FILTER_Q      = sqrt(pow(2.0, 1.0/BANDS_PER_OCT)) / (pow(2.0, 1.0/BANDS_PER_OCT) - 1.0);
+  FILTER_Q = FILTER_Q * 6;
+    
+  DB_MAX   = 0.0;
+  DB_MIN   = -50.0;
+  DB_RANGE = DB_MAX - DB_MIN;
+
+  MIN_LINEAR   = 0.000001;
+  INV_LOG10_20 = 20.0 / log(10);
+
+  // Bloques de 256 — espacio suficiente para hasta 248 bandas
+  OFF_FC      =    0;
+  OFF_B0      =  256;
+  OFF_B2      =  512;
+  OFF_A1      =  768;
+  OFF_A2      = 1024;
+  OFF_X1      = 1280;
+  OFF_X2      = 1536;
+  OFF_Y1      = 1792;
+  OFF_Y2      = 2048;
+  OFF_BANDDB  = 2304;
+  OFF_BANDSM  = 2560;
+  OFF_LOGPOS  = 2816;
+  OFF_PKHOLD  = 3072;
+  OFF_PKTIMER = 3328;
+  OFF_VLINES  = 3584;
+  OFF_VLOGPOS = 3594;
+
+  log_fmax_fmin = log(FREQ_MAX / FREQ_MIN);
+  HOLD_SAMPLES  = 3.0 * 44100.0;
+  peak_hold_on  = 0;
+
+  i = 0;
+  loop(NUM_BANDS,
+    fc_i = FREQ_MIN * exp(i * LOG2 / BANDS_PER_OCT);
+    mem[OFF_FC      + i] = fc_i;
+    mem[OFF_X1      + i] = 0.0;
+    mem[OFF_X2      + i] = 0.0;
+    mem[OFF_Y1      + i] = 0.0;
+    mem[OFF_Y2      + i] = 0.0;
+    mem[OFF_BANDDB  + i] = DB_MIN;
+    mem[OFF_BANDSM  + i] = DB_MIN;
+    mem[OFF_LOGPOS  + i] = log(fc_i / FREQ_MIN) / log_fmax_fmin;
+    mem[OFF_PKHOLD  + i] = DB_MIN;
+    mem[OFF_PKTIMER + i] = 0.0;
+    i += 1;
+  );
+
+  mem[OFF_VLINES + 0] = 20;
+  mem[OFF_VLINES + 1] = 50;
+  mem[OFF_VLINES + 2] = 100;
+  mem[OFF_VLINES + 3] = 200;
+  mem[OFF_VLINES + 4] = 500;
+  mem[OFF_VLINES + 5] = 1000;
+  mem[OFF_VLINES + 6] = 2000;
+  mem[OFF_VLINES + 7] = 5000;
+  mem[OFF_VLINES + 8] = 10000;
+  mem[OFF_VLINES + 9] = 20000;
+  num_vlines = 10;
+
+  vl_i = 0;
+  loop(num_vlines,
+    vl_freq = mem[OFF_VLINES + vl_i];
+    mem[OFF_VLOGPOS + vl_i] = log(vl_freq / FREQ_MIN) / log_fmax_fmin;
+    vl_i += 1;
+  );
+
+  last_srate  = 0.0;
+  coefs_dirty = 1;
+
+  att_coef     = 0.0;
+  rel_coef     = 0.0;
+  att_coef_inv = 1.0;
+  rel_coef_inv = 1.0;
+
+  cached_gain_lin = 1.0;
+
+  gfx_margin_left   = 50;
+  gfx_margin_bottom = 30;
+  gfx_margin_top    = 15;
+  gfx_margin_right  = 10;
+
+  TILT_PER_OCTAVE = 0;
+  TILT_STEP = TILT_PER_OCTAVE / BANDS_PER_OCT;
+
+
+@slider
+
+  db_gain2 = slider4;
+  sr_safe  = (srate > 1000) ? srate : 44100.0;
+
+  slider6 == 0 ? BANDS_PER_OCT = 4 :
+  slider6 == 1 ? BANDS_PER_OCT = 6 :
+                 BANDS_PER_OCT = 8;
+  slider6 == 3 ? BANDS_PER_OCT = 12;
+
+  BANDS_PER_OCT == 4 ? db_gain2 += 1;
+  BANDS_PER_OCT == 6 ? db_gain2 += 0;
+  BANDS_PER_OCT == 8 ? db_gain2 += -1.5;
+  BANDS_PER_OCT == 12 ? db_gain2 += -2;
+
+  NUM_BANDS = ceil(BANDS_PER_OCT * log(FREQ_MAX / FREQ_MIN) / LOG2);
+  FILTER_Q  = sqrt(pow(2.0, 1.0/BANDS_PER_OCT)) / (pow(2.0, 1.0/BANDS_PER_OCT) - 1.0);
+  FILTER_Q = FILTER_Q * 6;
+  TILT_STEP = TILT_PER_OCTAVE / BANDS_PER_OCT;
+
+  i = 0;
+  loop(NUM_BANDS,
+    fc_i = FREQ_MIN * exp(i * LOG2 / BANDS_PER_OCT);
+    mem[OFF_FC      + i] = fc_i;
+    mem[OFF_LOGPOS  + i] = log(fc_i / FREQ_MIN) / log_fmax_fmin;
+    mem[OFF_BANDSM  + i] = DB_MIN;
+    mem[OFF_BANDDB  + i] = DB_MIN;
+    mem[OFF_PKHOLD  + i] = DB_MIN;
+    mem[OFF_PKTIMER + i] = 0.0;
+    i += 1;
+  );
+
+  coefs_dirty = 1;
+
+  att_ms = max(0.01, slider1);
+  rel_ms = max(1.0, slider2);
+
+  att_coef     = exp(-1000.0 / (att_ms * sr_safe));
+  rel_coef     = exp(-1000.0 / (rel_ms * sr_safe));
+  att_coef_inv = 1.0 - att_coef;
+  rel_coef_inv = 1.0 - rel_coef;
+
+  cached_gain_lin = exp(db_gain2 * 0.11512925);
+
+  DB_MIN   = slider3;
+  DB_MAX   = slider5;
+  DB_RANGE = DB_MAX - DB_MIN;
+
+  HOLD_SAMPLES = 3.0 * sr_safe;
+  peak_hold_on = slider8;
+
+
+@block
+
+  srate != last_srate ? (
+    last_srate   = srate;
+    coefs_dirty  = 1;
+    HOLD_SAMPLES = 3.0 * srate;
+  );
+
+  coefs_dirty ? (
+    coefs_dirty = 0;
+    sr_safe = (srate > 1000) ? srate : 44100.0;
+
+    i = 0;
+    loop(NUM_BANDS,
+      fc_i   = mem[OFF_FC + i];
+      w0     = TWO_PI * fc_i / sr_safe;
+      w0     = min(w0, PI * 0.98);
+      sin_w0 = sin(w0);
+      cos_w0 = cos(w0);
+      alpha  = sin_w0 / (2.0 * FILTER_Q);
+
+      b0_raw = sin_w0 * 0.5;
+      a0_raw = 1.0 + alpha;
+      inv_a0 = 1.0 / a0_raw;
+
+      mem[OFF_B0 + i] =  b0_raw * inv_a0;
+      mem[OFF_B2 + i] = -b0_raw * inv_a0;
+      mem[OFF_A1 + i] = -2.0 * cos_w0 * inv_a0;
+      mem[OFF_A2 + i] = (1.0 - alpha)  * inv_a0;
+
+      mem[OFF_X1 + i] = 0.0;
+      mem[OFF_X2 + i] = 0.0;
+      mem[OFF_Y1 + i] = 0.0;
+      mem[OFF_Y2 + i] = 0.0;
+
+      i += 1;
+    );
+
+    att_ms   = max(0.01, slider1);
+    rel_ms   = max(1.0, slider2);
+    att_coef = exp(-1000.0 / (att_ms * sr_safe));
+    rel_coef = exp(-1000.0 / (rel_ms * sr_safe));
+    att_coef_inv = 1.0 - att_coef;
+    rel_coef_inv = 1.0 - rel_coef;
+  );
+
+
+@sample
+  // Proceso el sonido en Mono haciendo la suma de los dos canales
+  // L + R para que me de el sonido real y no uno falso
+  // Es decir el sobido capturado es el total como lo escucha el oido humano
+  mono_in = (spl0 + spl1) * 0.5 * cached_gain_lin;
+
+  i = 0;
+  loop(NUM_BANDS,
+
+    b0_i = mem[OFF_B0 + i];
+    b2_i = mem[OFF_B2 + i];
+    a1_i = mem[OFF_A1 + i];
+    a2_i = mem[OFF_A2 + i];
+
+    x1_i = mem[OFF_X1 + i];
+    x2_i = mem[OFF_X2 + i];
+    y1_i = mem[OFF_Y1 + i];
+    y2_i = mem[OFF_Y2 + i];
+
+    y_i = b0_i * mono_in
+        + b2_i * x2_i
+        - a1_i * y1_i
+        - a2_i * y2_i;
+
+    mem[OFF_X2 + i] = x1_i;
+    mem[OFF_X1 + i] = mono_in;
+    mem[OFF_Y2 + i] = y1_i;
+    mem[OFF_Y1 + i] = y_i;
+
+    peak_lin = abs(y_i);
+    new_db = peak_lin > MIN_LINEAR ?
+             INV_LOG10_20 * log(peak_lin) + i * TILT_STEP :
+             DB_MIN;
+    new_db = max(DB_MIN, min(DB_MAX, new_db));
+
+    mem[OFF_BANDDB + i] = new_db;
+
+    sm_i = mem[OFF_BANDSM + i];
+    new_db > sm_i ? (
+      mem[OFF_BANDSM + i] = att_coef * sm_i + att_coef_inv * new_db;
+    ) : (
+      mem[OFF_BANDSM + i] = rel_coef * sm_i + rel_coef_inv * new_db;
+    );
+
+    // Peak hold — solo se procesa si está activado
+    // Para ahorra DSP
+    peak_hold_on ? (
+      pk_i  = mem[OFF_PKHOLD  + i];
+      tmr_i = mem[OFF_PKTIMER + i];
+
+      new_db >= pk_i ? (
+        mem[OFF_PKHOLD  + i] = new_db;
+        mem[OFF_PKTIMER + i] = HOLD_SAMPLES;
+      ) : (
+        tmr_i > 0 ? (
+          mem[OFF_PKTIMER + i] = tmr_i - 1;
+        ) : (
+          mem[OFF_PKHOLD + i] = rel_coef * pk_i + rel_coef_inv * new_db;
+        );
+      );
+    );
+
+    i += 1;
+  );
+
+
+@gfx
+  /*
+   ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+   ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+   :::::::::::::::::::    ATENCION - ATENTION :::::::::::::::::::::
+   ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+   ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+   
+   English; 
+   If you have made it this far, I would like to invite you to support 
+   this project with a donation.
+
+  Your feedback is invaluable to me; if there are any improvements or features you would like to see implemented, please do not hesitate to ask. I strive to incorporate as many requested enhancements as possible to provide the best experience.
+
+  By contributing, you not only support this specific tool but also empower the development of this and other open-source projects I have created for the community. Every donation helps sustain these free resources.
+
+  Thank you for your time and support.
+
+  Best regards,
+  Israel Torres Mayoral
+  Mexico City
+
+  May God bless you and make His face shine upon you.
+  ---------------------------------------------------
+   Espanol: 
+
+  Si has llegado hasta aquí, te invito cordialmente a 
+  apoyar este proyecto mediante una donación.
+
+  Tu opinión es fundamental; si tienes alguna mejora o funcionalidad que te gustaría ver implementada, no dudes en solicitarla. Mi compromiso es integrar la mayor cantidad de mejoras solicitadas para ofrecerte un mejor servicio.
+
+  Al realizar una donación, no solo impulsas este desarrollo, sino que también apoyas la continuidad de este y otros proyectos gratuitos que he desarrollado para tu uso. Tu contribución es clave para mantener estos recursos accesibles para todos.
+
+  Gracias por leerme y por tu apoyo.
+
+  Atentamente,
+  Israel Torres Mayoral
+  Ciudad de México
+
+  Que Dios te bendiga y haga resplandecer su rostro sobre ti. 
+
+  :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+  :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+  */
+
+  plot_x = gfx_margin_left;
+  plot_y = gfx_margin_top;
+  plot_w = gfx_w - gfx_margin_left - gfx_margin_right;
+  plot_h = gfx_h - gfx_margin_top  - gfx_margin_bottom;
+
+  gfx_r = 0.10; gfx_g = 0.10; gfx_b = 0.12; gfx_a = 1.0;
+  gfx_rect(0, 0, gfx_w, gfx_h);
+
+  gfx_r = 0.07; gfx_g = 0.07; gfx_b = 0.09; gfx_a = 1.0;
+  gfx_rect(plot_x, plot_y, plot_w, plot_h);
+
+  gfx_r = 0.55; gfx_g = 0.55; gfx_b = 0.60; gfx_a = 0.45;
+  db_line = 0.0;
+  loop(DB_RANGE / 5 + 1,
+    db_norm = (DB_MAX - db_line) / DB_RANGE;
+    line_y  = plot_y + db_norm * plot_h;
+    gfx_line(plot_x, line_y, plot_x + plot_w, line_y);
+    db_line -= 5;
+  );
+
+  gfx_r = 0.50; gfx_g = 0.50; gfx_b = 0.55; gfx_a = 0.40;
+  vl_i = 0;
+  loop(num_vlines,
+    log_ratio = mem[OFF_VLOGPOS + vl_i];
+    vline_x   = plot_x + log_ratio * plot_w;
+    vline_x >= plot_x && vline_x <= plot_x + plot_w ? (
+      gfx_line(vline_x, plot_y, vline_x, plot_y + plot_h);
+    );
+    vl_i += 1;
+  );
+
+  // Barras
+  gfx_r = 0.16; gfx_g = 0.44; gfx_b = 0.83; gfx_a = 1.0;
+  band_i = 0;
+  loop(NUM_BANDS,
+    band_db_val = mem[OFF_BANDSM + band_i];
+    band_db_val = max(DB_MIN, min(DB_MAX, band_db_val));
+    band_norm   = (band_db_val - DB_MIN) / DB_RANGE;
+    bar_height  = band_norm * plot_h;
+
+    bar_x = floor(plot_x + mem[OFF_LOGPOS + band_i] * plot_w);
+    band_i < NUM_BANDS - 1 ? (
+      bar_x_next = floor(plot_x + mem[OFF_LOGPOS + band_i + 1] * plot_w);
+    ) : (
+      bar_x_next = plot_x + plot_w;
+    );
+    bar_width_i = max(1, bar_x_next - bar_x - 1);
+
+    bar_y = plot_y + plot_h - bar_height;
+    bar_height > 0.5 ? (
+      gfx_rect(bar_x, bar_y, bar_width_i, bar_height);
+    );
+    band_i += 1;
+  );
+
+  // Peak hold markers — solo si esta habilitado  
+  peak_hold_on ? (
+    gfx_r = 1.0; gfx_g = 1.0; gfx_b = 1.0; gfx_a = 0.8;
+    band_i = 0;
+    loop(NUM_BANDS,
+      pk_db = mem[OFF_PKHOLD + band_i];
+      pk_db > DB_MIN ? (
+        pk_db   = min(DB_MAX, pk_db);
+        pk_norm = (pk_db - DB_MIN) / DB_RANGE;
+        pk_y    = floor(plot_y + plot_h - pk_norm * plot_h) - 2;
+
+        bar_x = floor(plot_x + mem[OFF_LOGPOS + band_i] * plot_w);
+        band_i < NUM_BANDS - 1 ? (
+          bar_x_next = floor(plot_x + mem[OFF_LOGPOS + band_i + 1] * plot_w);
+        ) : (
+          bar_x_next = plot_x + plot_w;
+        );
+        bar_width_i = max(1, bar_x_next - bar_x - 1);
+
+        pk_y >= plot_y ? (
+          gfx_rect(bar_x, pk_y, bar_width_i, 2);
+        );
+      );
+      band_i += 1;
+    );
+  );
+
+  gfx_r = 0.35; gfx_g = 0.35; gfx_b = 0.40; gfx_a = 0.70;
+  gfx_rect(plot_x,               plot_y,              plot_w, 1);
+  gfx_rect(plot_x,               plot_y + plot_h - 1, plot_w, 1);
+  gfx_rect(plot_x,               plot_y,              1, plot_h);
+  gfx_rect(plot_x + plot_w - 1,  plot_y,              1, plot_h);
+
+  gfx_setfont(1, "Arial", 10);
+  gfx_r = 0.80; gfx_g = 0.80; gfx_b = 0.85; gfx_a = 0.90;
+  db_label = 0.0;
+  loop(DB_RANGE / 5 + 1,
+    db_norm = (DB_MAX - db_label) / DB_RANGE;
+    label_y = plot_y + db_norm * plot_h;
+    db_label == 0 ? (
+      gfx_str = "0";
+    ) : (
+      gfx_str = sprintf(#, "%d", db_label);
+    );
+    gfx_measurestr(gfx_str, str_w, str_h);
+    gfx_x = plot_x - str_w - 5;
+    gfx_y = label_y - str_h / 2;
+    gfx_drawstr(gfx_str);
+    gfx_r = 0.50; gfx_g = 0.50; gfx_b = 0.55; gfx_a = 0.60;
+    gfx_line(plot_x - 3, label_y, plot_x, label_y);
+    gfx_r = 0.80; gfx_g = 0.80; gfx_b = 0.85; gfx_a = 0.90;
+    db_label -= 5;
+  );
+
+  gfx_r = 0.65; gfx_g = 0.65; gfx_b = 0.70; gfx_a = 0.80;
+  gfx_x = 2; gfx_y = plot_y + 2;
+  gfx_drawstr("dB");
+
+  gfx_setfont(1, "Arial", 9);
+  gfx_r = 0.80; gfx_g = 0.80; gfx_b = 0.85; gfx_a = 0.90;
+  vl_i = 0;
+  loop(num_vlines,
+    log_ratio = mem[OFF_VLOGPOS + vl_i];
+    label_x   = plot_x + log_ratio * plot_w;
+    vl_i == 0 ? lbl = "20"  :
+    vl_i == 1 ? lbl = "50"  :
+    vl_i == 2 ? lbl = "100" :
+    vl_i == 3 ? lbl = "200" :
+    vl_i == 4 ? lbl = "500" :
+    vl_i == 5 ? lbl = "1k"  :
+    vl_i == 6 ? lbl = "2k"  :
+    vl_i == 7 ? lbl = "5k"  :
+    vl_i == 8 ? lbl = "10k" : lbl = "20k";
+    gfx_measurestr(lbl, str_w, str_h);
+    gfx_x = label_x - str_w / 2;
+    gfx_y = plot_y + plot_h + 5;
+    gfx_x < plot_x ? gfx_x = plot_x;
+    gfx_drawstr(lbl);
+    gfx_r = 0.50; gfx_g = 0.50; gfx_b = 0.55; gfx_a = 0.60;
+    gfx_line(label_x, plot_y + plot_h, label_x, plot_y + plot_h + 4);
+    gfx_r = 0.80; gfx_g = 0.80; gfx_b = 0.85; gfx_a = 0.90;
+    vl_i += 1;
+  );
+
+  gfx_r = 0.65; gfx_g = 0.65; gfx_b = 0.70; gfx_a = 0.80;
+  gfx_x = plot_x + plot_w - 15;
+  gfx_y = plot_y + plot_h + 5;
+  gfx_drawstr("Hz");
+
+  gfx_setfont(1, "Arial", 11);
+  gfx_r = 0.70; gfx_g = 0.85; gfx_b = 1.00; gfx_a = 1.00;
+  gfx_x = plot_x + plot_w - 280;
+  gfx_y = 3;
+  gfx_drawstr("Contribuciones(Donations) Paypal: israelftci@gmail.com");
+
+  mx = mouse_x;
+  my = mouse_y;
+  mouse_in_area = (mx >= plot_x) && (mx <= plot_x + plot_w) &&
+                  (my >= plot_y) && (my <= plot_y + plot_h);
+  mouse_in_area ? (
+    gfx_r = 1.0; gfx_g = 1.0; gfx_b = 1.0; gfx_a = 0.55;
+    gfx_line(0, my, gfx_w, my);
+    gfx_line(mx, 0, mx, gfx_h);
+    x_norm    = (mx - plot_x) / plot_w;
+    x_norm    = max(0.0, min(1.0, x_norm));
+    cursor_hz = FREQ_MIN * exp(x_norm * log_fmax_fmin);
+    y_norm    = (my - plot_y) / plot_h;
+    y_norm    = max(0.0, min(1.0, y_norm));
+    cursor_db = DB_MAX - y_norm * DB_RANGE;
+    cursor_hz >= 1000 ? (
+      hz_str = sprintf(#, "%.2f kHz", cursor_hz / 1000.0);
+    ) : (
+      hz_str = sprintf(#, "%.1f Hz", cursor_hz);
+    );
+    db_str = sprintf(#, "%.1f dB", cursor_db);
+    gfx_setfont(1, "Arial", 16);
+    gfx_measurestr(hz_str, hz_w, hz_h);
+    gfx_measurestr(db_str, db_w, db_h);
+    box_padding = 14;
+    box_w = max(hz_w, db_w) + box_padding * 2;
+    box_h = hz_h + db_h + box_padding * 3;
+    box_x = mx + 12;
+    box_y = my + 12;
+    box_x + box_w > gfx_w - 5 ? box_x = mx - box_w - 10;
+    box_y + box_h > gfx_h - 5 ? box_y = my - box_h - 10;
+    gfx_r = 0.05; gfx_g = 0.05; gfx_b = 0.08; gfx_a = 0.88;
+    gfx_rect(box_x, box_y, box_w, box_h);
+    gfx_r = 0.25; gfx_g = 0.45; gfx_b = 0.75; gfx_a = 0.80;
+    gfx_rect(box_x,              box_y,              box_w, 1);
+    gfx_rect(box_x,              box_y + box_h - 1,  box_w, 1);
+    gfx_rect(box_x,              box_y,              1, box_h);
+    gfx_rect(box_x + box_w - 1, box_y,              1, box_h);
+    gfx_r = 1.0; gfx_g = 0.85; gfx_b = 0.30; gfx_a = 1.0;
+    gfx_x = box_x + box_padding;
+    gfx_y = box_y + box_padding;
+    gfx_drawstr(hz_str);
+    gfx_r = 0.90; gfx_g = 0.90; gfx_b = 0.95; gfx_a = 1.0;
+    gfx_x = box_x + box_padding;
+    gfx_y = box_y + box_padding + hz_h + box_padding / 2;
+    gfx_drawstr(db_str);
+  );
+
+  gfx_setfont(1, "Arial", 9);
+  gfx_r = 0.50; gfx_g = 0.50; gfx_b = 0.55; gfx_a = 0.70;
+  gfx_x = 2; gfx_y = gfx_h - 20;
+  gfx_drawstr(sprintf(#, "Software Free (Gratuito) - OpenSource",
+              slider1, slider2, FILTER_Q, NUM_BANDS, srate));
