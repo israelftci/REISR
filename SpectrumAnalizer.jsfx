@@ -465,7 +465,8 @@ slider8:0<0,1,1{Off,On}>Peak Hold
   gfx_r = 0.70; gfx_g = 0.85; gfx_b = 1.00; gfx_a = 1.00;
   gfx_x = plot_x + plot_w - 280;
   gfx_y = 3;
-  gfx_drawstr("Contribuciones(Donations) Paypal: israelftci@gmail.com");
+  // Aqui el Mensaje
+  gfx_drawstr("");
 
   mx = mouse_x;
   my = mouse_y;
