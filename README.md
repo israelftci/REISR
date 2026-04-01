@@ -37,7 +37,7 @@ DE: Dieses Repository entstand aus dem Bedarf an hochwertigen, plattformübergre
 FR: Ce dépôt est né du besoin de processeurs audio de haute qualité et multiplateformes. En tant qu'utilisateur Linux, j'ai développé ces outils natifs pour REAPER à partir de zéro, visant à égaler les performances des solutions commerciales avec un code original axé sur l'efficacité et la transparence.
 
 <h3>🛠 Plugins</h3>
-::::::::::::::::::::::::::::::::::::::::::::::<br>
+::::::::::::::::::::::::::::::::::::::::::::::<br><br>
 1. Spectrum Analyzer (Multimeter)<br>
    
 EN: Advanced spectrum analyzer with high-precision graphics for technical analysis in mixing and mastering.
@@ -77,6 +77,7 @@ PT: ReaPack: Importe o URL do repositório. Manual: Copie os arquivos para a pas
 DE: ReaPack: Importieren Sie die Repository-URL. Manual: Kopieren Sie die Dateien in den REAPER-Ordner /Effects.
 
 FR: ReaPack: Importez l'URL du dépôt. Manual: Copiez les fichiers dans le dossier /Effects de REAPER.
+
 <br><br>
 -----------------------------------------------------------
 <br><br>
