@@ -1,12 +1,12 @@
 <h1>REISR</h1> 
 Professional Audio Tools for REAPER
 Multi-platform & Native (Linux • Windows • macOS)
-
+<br><br>
+:::::::::::::::::::::::::::::::::::<br>
+ReaPack Import Link:<br>
+https://github.com/israelftci/REISR/raw/main/index.xml<br>
 :::::::::::::::::::::::::::::::::::
-ReaPack Import Link:
-https://github.com/israelftci/REISR/raw/main/index.xml
-:::::::::::::::::::::::::::::::::::
-
+<br><br>
 <h3>Support the Project / Apoyo al Proyecto / Apoio ao Projeto / Projektunterstützung / Soutien au Projet</h3>
 
 EN: If these tools are useful for your workflow, you may contribute to their ongoing maintenance and development:
@@ -37,8 +37,8 @@ DE: Dieses Repository entstand aus dem Bedarf an hochwertigen, plattformübergre
 FR: Ce dépôt est né du besoin de processeurs audio de haute qualité et multiplateformes. En tant qu'utilisateur Linux, j'ai développé ces outils natifs pour REAPER à partir de zéro, visant à égaler les performances des solutions commerciales avec un code original axé sur l'efficacité et la transparence.
 
 <h3>🛠 Plugins</h3>
-::::::::::::::::::::::::::::::::::::::::::::::
-1. Spectrum Analyzer (Multimeter)
+::::::::::::::::::::::::::::::::::::::::::::::<br>
+1. Spectrum Analyzer (Multimeter)<br>
    
 EN: Advanced spectrum analyzer with high-precision graphics for technical analysis in mixing and mastering.
 
@@ -49,8 +49,8 @@ PT: Analisador de espetro avançado com gráficos de alta precisão para anális
 DE: Fortschrittlicher Spektrum-Analyser mit hochpräzisen Grafiken für die technische Analyse bei Mixing und Mastering.
 
 FR: Analyseur de spectre avancé avec des graphismes de haute précision pour l'analyse technique lors du mixage et du mastering.
-
-::::::::::::::::::::::::::::::::::::::::::::::
+<br>
+::::::::::::::::::::::::::::::::::::::::::::::<br><br>
 
 2. Standard Clipper
 
@@ -63,8 +63,8 @@ PT: Controlo total de picos com transparência e impacto profissional, baseado n
 DE: Vollständige Spitzenwertkontrolle mit professioneller Transparenz und Punch, basierend auf dem Industriestandard-Workflow.
 
 FR: Contrôle total des crêtes avec transparence et punch professionnel, basé sur le flux de travail standard de l'industrie.
-
-::::::::::::::::::::::::::::::::::::::::::::::::::
+<br>
+::::::::::::::::::::::::::::::::::::::::::::::::::<br><br>
 
 <h3>🚀 Installation / Instalación / Instalação / Installation / Installation</h3>
 
@@ -77,8 +77,8 @@ PT: ReaPack: Importe o URL do repositório. Manual: Copie os arquivos para a pas
 DE: ReaPack: Importieren Sie die Repository-URL. Manual: Kopieren Sie die Dateien in den REAPER-Ordner /Effects.
 
 FR: ReaPack: Importez l'URL du dépôt. Manual: Copiez les fichiers dans le dossier /Effects de REAPER.
-
+<br><br>
 -----------------------------------------------------------
-
+<br><br>
 <h3>📺 Support & Tutorials / Soporte</h3>
 👉 https://www.youtube.com/@israeltmay
