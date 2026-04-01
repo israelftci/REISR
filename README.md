@@ -1,50 +1,68 @@
-# REISR
---------------------------------------------------------
-LINK IMPORT REAPACK:
+REISR: Professional Audio Tools for REAPER
+Multi-platform & Native (Linux • Windows • macOS)
+ReaPack Import Link:
 https://github.com/israelftci/REISR/raw/main/index.xml
----------------------------------------------------------
 
-Multi-platform & Native (Linux, Windows, macOS)
-🇪🇸 Descripción en Español
+Support the Project / Apoyo al Proyecto / Apoio ao Projeto / Projektunterstützung / Soutien au Projet
+EN: If these tools are useful for your workflow, you may contribute to their ongoing maintenance and development:
+https://www.paypal.me/israelftci
 
-Bienvenido a mi repositorio personal de herramientas de audio. Este espacio nace de la necesidad de contar con procesadores de alta calidad que fueran verdaderamente multiplataforma.
+ES: Si estas herramientas son útiles para tu flujo de trabajo, puedes contribuir a su mantenimiento y desarrollo continuo:
+https://www.paypal.me/israelftci
 
-Decidí desarrollar estos plugins porque no existían alternativas nativas equivalentes dentro de REAPER; las opciones comerciales más populares suelen ser de pago y limitadas exclusivamente a Windows y macOS. Como usuario de Linux, me enfoqué en escribir todo el código completamente desde cero para asegurar un rendimiento óptimo y una compatibilidad nativa total (Win, Lin, Mac).
-Instalación
+PT: Se estas ferramentas forem úteis para o seu fluxo de trabalho, pode contribuir para a sua manutenção e desenvolvimento contínuo:
+https://www.paypal.me/israelftci
 
-    Manual: Descarga los archivos y cópialos en la carpeta Effects dentro de tu directorio de configuración de REAPER.
+DE: Wenn diese Tools für Ihren Workflow nützlich sind, können Sie zu deren laufenden Wartung und Weiterentwicklung beitragen:
+https://www.paypal.me/israelftci
 
-    ReaPack: Puedes importar la URL de este repositorio directamente en ReaPack para gestionar las actualizaciones automáticamente.
+FR: Si ces outils sont utiles à votre flux de travail, vous pouvez contribuer à leur maintenance et à leur développement continus:
+https://www.paypal.me/israelftci
 
-🇺🇸 English Description
+📄 Description / Descripción / Descrição / Beschreibung / Description
+EN: This repository stems from the need for high-quality, multi-platform audio processors. As a Linux user, I have developed these native tools for REAPER from scratch, aiming to match the performance of commercial solutions with original code focused on efficiency and transparency.
 
-Welcome to my personal repository of audio tools. This project was born from the need for high-quality audio processors that are truly multi-platform.
+ES: Este repositorio surge de la necesidad de procesadores de audio de alta calidad y multiplataforma. Como usuario de Linux, he desarrollado estas herramientas nativas para REAPER desde cero, buscando igualar el rendimiento de soluciones comerciales con un código original enfocado en la eficiencia y la transparencia.
 
-I decided to develop these plugins because there were no equivalent native alternatives within REAPER; most popular commercial options are paid and limited to Windows and macOS. As a Linux user, I focused on writing all the code completely from scratch to ensure peak performance and full native compatibility across all systems (Win, Lin, Mac).
+PT: Este repositório surge da necessidade de processadores de áudio de alta qualidade e multiplataforma. Como utilizador de Linux, desenvolvi estas ferramentas nativas para o REAPER do zero, procurando igualar o desempenho de soluções comerciais com um código original focado na eficiência e transparência.
 
-Installation
+DE: Dieses Repository entstand aus dem Bedarf an hochwertigen, plattformübergreifenden Audioprozessoren. Als Linux-Nutzer habe ich diese nativen Tools für REAPER von Grund auf entwickelt, um die Leistung kommerzieller Lösungen mit originellem, auf Effizienz und Transparenz fokussiertem Code zu erreichen.
 
-    Manual: Download the files and copy them into the Effects folder within your REAPER resource path.
+FR: Ce dépôt est né du besoin de processeurs audio de haute qualité et multiplateformes. En tant qu'utilisateur Linux, j'ai développé ces outils natifs pour REAPER à partir de zéro, visant à égaler les performances des solutions commerciales avec un code original axé sur l'efficacité et la transparence.
 
-    ReaPack: You can import this repository's URL directly into ReaPack for automated updates.
-
-Update / Actualización: 29 de marzo de 2026
-
+🛠 Plugins (Update: 2026-03-29)
 1. Spectrum Analyzer (Multimeter)
+EN: Advanced spectrum analyzer with high-precision graphics for technical analysis in mixing and mastering.
 
-    ES: Analizador de espectro avanzado inspirado en el Multimeter de Logic Pro, pero mejorado con gráficas mucho más detalladas para un análisis técnico preciso en mezcla y mastering.
+ES: Analizador de espectro avanzado con gráficas de alta precisión para análisis técnico en mezcla y masterización.
 
-    EN: Advanced spectrum analyzer inspired by Logic Pro’s Multimeter, enhanced with higher-detail graphics for precise technical analysis during mixing and mastering.
+PT: Analisador de espetro avançado com gráficos de alta precisão para análise técnica em mistura e masterização.
+
+DE: Fortschrittlicher Spektrum-Analyser mit hochpräzisen Grafiken für die technische Analyse bei Mixing und Mastering.
+
+FR: Analyseur de spectre avancé avec des graphismes de haute précision pour l'analyse technique lors du mixage et du mastering.
 
 2. Standard Clipper
+EN: Total peak control with professional transparency and punch, based on the industry standard workflow.
 
-    ES: Plugin de recorte basado en el flujo de trabajo del famoso software comercial StandardCLIP. Permite un control total de los picos con la misma transparencia y pegada del estándar de la industria, pero con código original y nativo.
+ES: Control total de picos con transparencia y pegada profesional, basado en el flujo de trabajo del estándar de la industria.
 
-    EN: A clipping processor based on the workflow of the well-known StandardCLIP software. It offers total peak control with the same transparency and punch as the industry standard, using original, native code.
+PT: Controlo total de picos com transparência e impacto profissional, baseado no fluxo de trabalho padrão da indústria.
 
+DE: Vollständige Spitzenwertkontrolle mit professioneller Transparenz und Punch, basierend auf dem Industriestandard-Workflow.
 
-📺 Soporte y Tutoriales / Support & Tutorials
+FR: Contrôle total des crêtes avec transparence et punch professionnel, basé sur le flux de travail standard de l'industrie.
 
-Si tienes dudas sobre el funcionamiento o la instalación, puedes visitar mi canal de YouTube donde explico el uso de estas herramientas:
+🚀 Installation / Instalación / Instalação / Installation / Installation
+EN: ReaPack: Import the repository URL. Manual: Copy the files into the REAPER /Effects folder.
 
-👉 Link YouTube: https://www.youtube.com/@israeltmay
+ES: ReaPack: Importe la URL del repositorio. Manual: Copie los archivos en la carpeta /Effects de REAPER.
+
+PT: ReaPack: Importe o URL do repositório. Manual: Copie os arquivos para a pasta /Effects do REAPER.
+
+DE: ReaPack: Importieren Sie die Repository-URL. Manual: Kopieren Sie die Dateien in den REAPER-Ordner /Effects.
+
+FR: ReaPack: Importez l'URL du dépôt. Manual: Copiez les fichiers dans le dossier /Effects de REAPER.
+
+📺 Support & Tutorials / Soporte
+👉 https://www.youtube.com/@israeltmay
