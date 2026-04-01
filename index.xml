@@ -2,8 +2,27 @@
 <index version="1" name="REISR">
   <category name="Spectrum Analizer (Multimeter)">
     <reapack name="SpectrumAnalizer.jsfx" type="effect" desc="Spectrum Analizer (Multimeter)">
-      <version name="1" author="Israel Torres Mayoral" time="2026-03-29T18:44:36.123Z">
-        <changelog></changelog>
+      <version name="2.0.0" author="Israel Torres Mayoral" time="2026-03-31T18:30:03.000Z">
+        <changelog>
+          [Changelog] - 2026-03-31
+Visuals & Performance
+UI Modernization: Completely redesigned user interface for a cleaner, more professional, and modern aesthetic.
+
+Code Optimization: Refactored core programming to enhance stability and ensure lower CPU consumption.
+
+New Features & Tools
+Piano Roll Integration: Added a Piano Roll display to accurately visualize octaves across the frequency spectrum.
+
+Enhanced Crosshair Data: The crosshair tool now displays the musical note (e.g., C#3) in real-time, providing immediate harmonic context alongside frequency data.
+
+Loudness Metering (LUFS): Integrated three dedicated displays at the top for precise monitoring of LUFS-I, LUFS-S, and LUFS-M.
+
+Phase Correlation Meter: Added a visual correlation tool for stereo imaging:
+
+Green: Phase-coherent signal.
+
+Red: Phase issues or cancellation detected.
+        </changelog>
         <source>https://raw.githubusercontent.com/israelftci/REISR/refs/heads/main/SpectrumAnalizer.jsfx</source>
       </version>
     </reapack>
