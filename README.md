@@ -1,5 +1,8 @@
 # REISR
-REISR Custom Audio Plugins for REAPER DAW
+--------------------------------------------------------
+LINK IMPORT REAPACK:
+https://github.com/israelftci/REISR/raw/main/index.xml
+---------------------------------------------------------
 
 Multi-platform & Native (Linux, Windows, macOS)
 🇪🇸 Descripción en Español
