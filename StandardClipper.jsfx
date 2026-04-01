@@ -1,12 +1,17 @@
-desc: Standard Clipper
+desc: Standard Clipper (MASTERING)
+tags Standard Clipper
+version: 2.0.0 
 author: Israel Torres Mayoral
-version: 1.5
+license: GPL v3
 
-// Sliders ocultos para la automatización
+options:no_meter
+
 slider1:0.0<0.0,36.0,0.1>-Ganancia (dB)
-slider2:0.0<0.0,24.0,0.1>-Makeup (dB)
+slider2:0.0<-24.0,24.0,0.1>-Makeup (dB)
 slider3:0<0,1,1{Linear,Logarithmic}>-Forma de Onda
 slider4:0<0,1,1{Scan,Scroll}>-Scroll Horizontal
+slider5:1<0,1,1{Off,On}>-Auto Gain Compensation
+slider6:0<0,2,1{Off,2x,4x}>-Oversampling
 
 in_pin:left input
 in_pin:right input
@@ -14,186 +19,272 @@ out_pin:left output
 out_pin:right output
 
 @init
-  window_sec = 4;
-  window_size = 0;
-  window = 0;
-  window_index = 0;
-  batch_size = 0;
-  batch_index = 0;
-  batch_max = 0;
-  min_db = -18;
-  max_db = 0;
-  gr_invalid = 1;
-  
-  // Lógica de interacción
-  mouse_down = 0;
-  active_ctrl = 0; // 0: nada, 1: Gain, 2: Makeup
-  last_y = 0;
+  ui_plugin_name = "STANDARD CLIPPER";
+  ui_plugin_version = "v2.0";
+  ui_author_email = "Author: israelftci@gmail.com";
+  window = 8192; window_sec = 4; window_index = 0; min_db = -18;
+  gr_max = 1.0; active_clip_val = 1.0;  
+  samples_50ms = srate * 0.05; current_peak = 1.0; peak_hold_counter = 0;
+  clip_flag = 0; last_clip_time = 0; 
+  last_s0 = 0; last_s1 = 0;
+  x1_l = 0; x2_l = 0; y1_l = 0; y2_l = 0;
+  x1_r = 0; x2_r = 0; y1_r = 0; y2_r = 0;
+  mouse_down = 0; active_ctrl = 0; last_y = 0; drag_accum = 0;
+  last_click_time = 0; play_state_last = 0;
+  bg_drawn = 0; last_w = 0; last_h = 0;
 
 @slider
   gain = 10 ^ (slider1 / 20);
   extra_makeup = 10 ^ (slider2 / 20);
-  gr_invalid = 1;
- 
+  os_mode = slider6;
+  os_factor = os_mode == 0 ? 1 : (os_mode == 1 ? 2 : 4);
+  os_inv = 1 / os_factor;
+  
+  os_factor > 1 ? (
+      w0 = 2 * $pi * (srate * 0.45) / (srate * os_factor);
+      cos_w0 = cos(w0);
+      alpha = sin(w0) / 1.41421356;
+      a0_inv = 1 / (1 + alpha);
+      b0 = ((1 - cos_w0) / 2) * a0_inv;
+      b1 = (1 - cos_w0) * a0_inv;
+      b2 = ((1 - cos_w0) / 2) * a0_inv;
+      a1 = (-2 * cos_w0) * a0_inv;
+      a2 = (1 - alpha) * a0_inv;
+  );
+
+@block
+  play_state_current = play_state & 1;
+  play_state_current && !play_state_last ? (
+      gr_max = 1.0; active_clip_val = 1.0; current_peak = 1.0; last_clip_time = 0;
+      memset(window, 0, 8192); window_index = 0;
+  );
+  play_state_last = play_state_current;
+  clip_flag ? ( last_clip_time = time_precise(); clip_flag = 0; );
+
 @sample
-  spl0 *= gain;
-  spl1 *= gain;
-  abs0 = abs(spl0);
-  abs1 = abs(spl1);
-  abs0 > 1.0 ? ( spl0 = sign(spl0); );
-  abs1 > 1.0 ? ( spl1 = sign(spl1); );
-  spl0 /= gain;
-  spl1 /= gain;
-  spl0 *= extra_makeup;
-  spl1 *= extra_makeup;
+  s0_in = spl0 * gain; s1_in = spl1 * gain;
   
-  sig = max(abs0, abs1);
-  gr = max(1.0, sig);
-  gr_invalid ? ( gr_invalid = 0; gr_max = gr; ) : ( gr_max = max(gr, gr_max); );
+  os_factor == 1 ? (
+      abs0 = abs(s0_in); abs1 = abs(s1_in);
+      abs0 > 1.0 ? s0_in = sign(s0_in); abs1 > 1.0 ? s1_in = sign(s1_in);
+      peak_sig = max(abs0, abs1);
+  ) : (
+      peak_sig = 0;
+      step0 = (s0_in - last_s0) * os_inv; step1 = (s1_in - last_s1) * os_inv;
+      i_os = 1;
+      while(i_os <= os_factor) (
+          c0 = last_s0 + (step0 * i_os); c1 = last_s1 + (step1 * i_os);
+          a0 = abs(c0); a1 = abs(c1);
+          a0 > 1.0 ? c0 = sign(c0); a1 > 1.0 ? c1 = sign(c1);
+          peak_sig = max(peak_sig, max(a0, a1));
+          
+          out0 = b0*c0 + b1*x1_l + b2*x2_l - a1*y1_l - a2*y2_l;
+          x2_l = x1_l; x1_l = c0; y2_l = y1_l; y1_l = out0;
+          
+          out1 = b0*c1 + b1*x1_r + b2*x2_r - a1*y1_r - a2*y2_r;
+          x2_r = x1_r; x1_r = c1; y2_r = y1_r; y1_r = out1;
+          
+          i_os += 1;
+      );
+      s0_in = out0; s1_in = out1;
+  );
   
+  last_s0 = spl0 * gain; last_s1 = spl1 * gain;
+  slider5 ? ( s0_in /= gain; s1_in /= gain; );
+  spl0 = s0_in * extra_makeup; spl1 = s1_in * extra_makeup;
+  
+  gr = max(1.0, peak_sig);
+  gr > gr_max ? gr_max = gr;
+  gr > 1.0 ? (
+      clip_flag = 1; 
+      gr >= current_peak ? ( current_peak = gr; peak_hold_counter = samples_50ms;
+      ) : ( peak_hold_counter -= 1; peak_hold_counter <= 0 ? ( current_peak = gr; peak_hold_counter = samples_50ms; ); );
+      active_clip_val = current_peak;
+  ) : ( peak_hold_counter -= 1; peak_hold_counter <= 0 ? current_peak = 1.0; );
+
   batch_size > 0 ? (
-    sig > batch_max ? ( batch_max = sig; );
+    peak_sig > batch_max ? ( batch_max = peak_sig; );
     batch_index += 1;
     batch_index >= batch_size ? (
-      window[window_index] = batch_max;
-      batch_max = 0; batch_index = 0;
-      window_index += 1;
-      window_index >= window_size ? ( window_index = 0; );
+      window[window_index] = batch_max; batch_max = 0; batch_index = 0;
+      window_index += 1; window_index >= window_size ? ( window_index = 0; );
     );
   );
-  
-@gfx 600 400
 
-  // --- 1. CÁLCULOS DE POSICIÓN ---
-  waveform_h = gfx_h * 0.55; 
-  panel_y = waveform_h;
-  panel_h = gfx_h - waveform_h;
+@gfx 650 560
+  screen_margin = 25; top_header_space = 28;
+  screen_x = screen_margin; screen_y = screen_margin + top_header_space;
+  screen_w = gfx_w - (screen_margin * 2); screen_h = floor((gfx_h - top_header_space) * 0.4);
+  panel_y = screen_y + screen_h + screen_margin;
   
-  k_r = min(panel_h * 0.25, 45); // Radio del knob
-  k_y = panel_y + (panel_h * 0.5); // Centro Y
-  
-  k1_x = gfx_w * 0.2; // Gain
-  k2_x = gfx_w * 0.8; // Makeup
-  
-  disp_w = min(200, gfx_w * 0.3);
-  disp_h = min(60, panel_h * 0.5);
-  disp_x = (gfx_w - disp_w) / 2;
-  disp_y = panel_y + 15;
-  
-  btn_w = disp_w;
-  btn_x = disp_x;
-  btn_y = disp_y + disp_h + 10;
+  k1_x = gfx_w * 0.22; disp_x = (gfx_w - 140) / 2; k2_x = gfx_w * 0.78; 
+  top_label_y = panel_y + 10; k_y = panel_y + 100;          
+  disp1_y = top_label_y + 20; disp2_lbl_y = disp1_y + 40 + 15; disp2_y = disp2_lbl_y + 20;   
+  bottom_btn_y = panel_y + 195; bottom_lbl_y = bottom_btn_y + 30; 
 
-  // --- 2. LÓGICA DE RATÓN (HIT TEST) ---
+  k_r = 45; disp_w = 140; disp_h = 40; btn_h = 22;
+  ag_w = 60; ag_x = k1_x - ag_w/2; 
+  mode_w = 70; mode_x = gfx_w/2 - mode_w/2;
+  os_w = 42; os_space = 5; os_total_w = (os_w * 3) + (os_space * 2);
+  os_start_x = k2_x - os_total_w/2;
+  os1_x = os_start_x; os2_x = os1_x + os_w + os_space; os3_x = os2_x + os_w + os_space;
+
+  t_gfx = time_precise();
+  
   (mouse_cap & 1) ? (
     !mouse_down ? (
-      mouse_down = 1;
-      last_y = mouse_y;
-      
-      // ¿Clic en Knob GAIN?
-      (mouse_x > k1_x - k_r - 20 && mouse_x < k1_x + k_r + 20 && mouse_y > k_y - k_r - 20 && mouse_y < k_y + k_r + 20) ? (
-        active_ctrl = 1;
-      ) : 
-      // ¿Clic en Knob MAKEUP?
-      (mouse_x > k2_x - k_r - 20 && mouse_x < k2_x + k_r + 20 && mouse_y > k_y - k_r - 20 && mouse_y < k_y + k_r + 20) ? (
-        active_ctrl = 2;
-      ) : 
-      /* ¿Botón Scale?
-      (mouse_x > disp_x && mouse_x < disp_x + btn_w && mouse_y > btn_y && mouse_y < btn_y + 25) ? (
-        slider3 = !slider3; sliderchange(3);
-      ) : 
-      */
-      // ¿Botón Mode?
-      (mouse_x > disp_x + disp_w - btn_w && mouse_x < disp_x + disp_w && mouse_y > btn_y && mouse_y < btn_y + 25) ? (
-        slider4 = !slider4; sliderchange(4);
-      ) :
-      // ¿Reset GR?
-      (mouse_x > disp_x && mouse_x < disp_x + disp_w && mouse_y > disp_y && mouse_y < disp_y + disp_h) ? (
-        gr_max = 1; gr_invalid = 1;
+      mouse_down = 1; last_y = mouse_y; drag_accum = 0;
+      is_dbl = (t_gfx - last_click_time) < 0.25;
+      (mouse_x > k1_x-k_r-10 && mouse_x < k1_x+k_r+10 && mouse_y > k_y-k_r-10 && mouse_y < k_y+k_r+10) ? ( active_ctrl = 1; is_dbl ? (slider1 = 0; sliderchange(1); gain = 10^(slider1/20););
+      ) : (mouse_x > k2_x-k_r-10 && mouse_x < k2_x+k_r+10 && mouse_y > k_y-k_r-10 && mouse_y < k_y+k_r+10) ? ( active_ctrl = 2; is_dbl ? (slider2 = 0; sliderchange(2); extra_makeup = 10^(slider2/20););
+      ) : (mouse_y > bottom_btn_y - 5 && mouse_y < bottom_btn_y + btn_h + 5) ? (
+          (mouse_x > ag_x && mouse_x < ag_x+ag_w) ? ( is_dbl ? slider5 = 1 : slider5 = !slider5; sliderchange(5); ) :
+          (mouse_x > mode_x && mouse_x < mode_x+mode_w) ? ( slider4 = !slider4; sliderchange(4); ) :
+          (mouse_x > os1_x && mouse_x < os1_x+os_w) ? ( slider6 = 0; sliderchange(6); ) :
+          (mouse_x > os2_x && mouse_x < os2_x+os_w) ? ( slider6 = 1; sliderchange(6); ) :
+          (mouse_x > os3_x && mouse_x < os3_x+os_w) ? ( slider6 = 2; sliderchange(6); );
+      ) : (mouse_x > disp_x && mouse_x < disp_x+disp_w && mouse_y > disp1_y && mouse_y < disp2_y+disp_h) ? (
+        gr_max = 1.0; active_clip_val = 1.0; last_clip_time = 0;
       );
+      last_click_time = t_gfx;
     ) : (
-      // Arrastre vertical
-      active_ctrl == 1 ? (
-        slider1 = max(0, min(36, slider1 + (last_y - mouse_y) * 0.05));
-        sliderchange(1);
-        gain = 10 ^ (slider1 / 20); // Actualización forzada del DSP
-      );
-      active_ctrl == 2 ? (
-        slider2 = max(0, min(24, slider2 + (last_y - mouse_y) * 0.05));
-        sliderchange(2);
-        extra_makeup = 10 ^ (slider2 / 20); // Actualización forzada del DSP
+      dy = last_y - mouse_y;
+      (mouse_cap & 8) ? ( 
+        drag_accum += dy;
+        abs(drag_accum) >= 3 ? (
+          step = sign(drag_accum) * 0.1;
+          active_ctrl == 1 ? (slider1 = max(0, min(36, floor((slider1+step)*10+0.5)/10)); sliderchange(1); gain = 10^(slider1/20););
+          active_ctrl == 2 ? (slider2 = max(-24, min(24, floor((slider2+step)*10+0.5)/10)); sliderchange(2); extra_makeup = 10^(slider2/20););
+          drag_accum = 0;
+        );
+      ) : (
+        active_ctrl == 1 ? (slider1 = max(0, min(36, slider1 + dy*0.15)); sliderchange(1); gain = 10^(slider1/20););
+        active_ctrl == 2 ? (slider2 = max(-24, min(24, slider2 + dy*0.15)); sliderchange(2); extra_makeup = 10^(slider2/20););
       );
       last_y = mouse_y;
     );
-  ) : (
-    mouse_down = 0; active_ctrl = 0;
+  ) : (mouse_down = 0; active_ctrl = 0; drag_accum = 0;);
+
+  (gfx_w != last_w || gfx_h != last_h) ? bg_drawn = 0;
+  last_w = gfx_w; last_h = gfx_h;
+
+  bg_drawn == 0 ? (
+      gfx_dest = 1;
+      gfx_setimgdim(1, -1, -1); gfx_setimgdim(1, gfx_w, gfx_h);
+      gfx_r=0.12; gfx_g=0.18; gfx_b=0.25; gfx_rect(0,0,gfx_w,gfx_h);
+      i_t=0; while(i_t < gfx_h)(
+        h_val1 = sin(i_t * 12.9898) * 43758.5453; r_val1 = h_val1 - floor(h_val1);
+        h_val2 = sin(i_t * 78.2330) * 43758.5453; r_val2 = h_val2 - floor(h_val2);
+        gfx_r=0.6; gfx_g=0.75; gfx_b=0.9; gfx_a = 0.02 + (r_val1 * 0.04); gfx_line(0, i_t, gfx_w, i_t);
+        gfx_r=0.02; gfx_g=0.05; gfx_b=0.1; gfx_a = 0.02 + (r_val2 * 0.05); gfx_line(0, i_t+1, gfx_w, i_t+1);
+        i_t+=2;
+      );
+      gfx_a=1; gfx_r=0.25; gfx_g=0.32; gfx_b=0.4; gfx_line(0, 0, gfx_w, 0, 3); 
+      gfx_r=0.05; gfx_g=0.08; gfx_b=0.12; gfx_line(0, gfx_h-1, gfx_w, gfx_h-1, 3);
+      gfx_r=0.08; gfx_g=0.08; gfx_b=0.1; 
+      gfx_circle(15, 15, 6, 1, 1); gfx_circle(gfx_w-15, 15, 6, 1, 1); gfx_circle(15, gfx_h-15, 6, 1, 1); gfx_circle(gfx_w-15, gfx_h-15, 6, 1, 1);
+      gfx_r=0.3; gfx_g=0.3; gfx_b=0.35; 
+      gfx_line(12, 12, 18, 18, 2); gfx_line(gfx_w-18, 12, gfx_w-12, 18, 2); gfx_line(12, gfx_h-18, 18, gfx_h-12, 2); gfx_line(gfx_w-18, gfx_h-18, gfx_w-12, gfx_h-12, 2);
+      gfx_dest = -1; bg_drawn = 1;
+  );
+  
+  gfx_a=1; gfx_x=0; gfx_y=0; gfx_blit(1, 1, 0);
+
+  function draw_sharp_chrome(str, x, y) (
+    gfx_r=0.02; gfx_g=0.03; gfx_b=0.05; gfx_a=0.9; gfx_x=x+1; gfx_y=y+1; gfx_drawstr(str);
+    gfx_r=0.96; gfx_g=0.98; gfx_b=1.0; gfx_a=1.0; gfx_x=x; gfx_y=y; gfx_drawstr(str);
   );
 
-  // --- 3. DIBUJO ---
-  gfx_r=0; gfx_g=0; gfx_b=0; gfx_a=1; gfx_rect(0, 0, gfx_w, gfx_h);
+  gfx_setfont(1, "Arial", 20, 'b'); draw_sharp_chrome(ui_plugin_name, 25, 12);
+  gfx_setfont(3, "Arial", 10, ''); gfx_r=0.45; gfx_g=0.5; gfx_b=0.55; gfx_x=26; gfx_y=36; gfx_drawstr(ui_author_email);
+  gfx_setfont(2, "Arial", 14, 'b'); gfx_measurestr(ui_plugin_version, vw, vh); draw_sharp_chrome(ui_plugin_version, gfx_w - 25 - vw, 16);
 
-  // Onda y Grid
-  window_size = gfx_w;
-  batch_size = floor(window_sec * srate / window_size);
-  gfx_r=1; gfx_g=1; gfx_b=1; gfx_a=0.1;
-  level = -3;
+  gfx_r=0.08; gfx_g=0.1; gfx_b=0.12; gfx_rect(screen_x-4, screen_y-4, screen_w+8, screen_h+8);
+  gfx_r=0.3; gfx_g=0.35; gfx_b=0.4; gfx_rect(screen_x-2, screen_y-2, screen_w+4, screen_h+4);
+  gfx_r=0.02; gfx_g=0.02; gfx_b=0.02; gfx_rect(screen_x, screen_y, screen_w, screen_h);
+
+  window_size = screen_w; batch_size = max(1, floor(window_sec * srate / window_size)); v_scale = slider3 ? 1.0 : 1.2;
+  gfx_setfont(4, "Arial", 10); level = 0;
   while(level >= min_db)(
-    ty = (slider3 ? (20*log10(10^(level/20)) - min_db)/(0 - min_db) : (10^(level/20))) * waveform_h;
-    gy = waveform_h - ty;
-    gfx_line(0, gy, gfx_w, gy);
-    level -= 3;
+    v_level = 10^(level/20);
+    y_grid = screen_y + screen_h - (slider3 ? ((level - min_db)/(0 - min_db) * screen_h) : (v_level * screen_h / v_scale));
+    y_grid = max(y_grid, screen_y); 
+    level == 0 ? ( gfx_r=0.2; gfx_g=0.5; gfx_b=0.2; gfx_a=0.8; ) : ( gfx_r=0.1; gfx_g=0.3; gfx_b=0.1; gfx_a=0.5; );
+    gfx_line(screen_x, y_grid, screen_x + screen_w, y_grid); level -= 3;
   );
 
-  i=0; imax = slider4 ? gfx_w : window_index;
+  y_zero_db = screen_y + screen_h - (slider3 ? ((0 - min_db)/(0 - min_db) * screen_h) : (1.0 * screen_h / v_scale));
+  i=0; imax = slider4 ? screen_w : window_index;
   while(i < imax)(
-    v = window[slider4 ? (i + window_index + 1) % gfx_w : i];
-    sy = waveform_h - (min(v, 2) * waveform_h / (slider3 ? 1 : 1.2));
-    gfx_r=0; gfx_g=0.9; gfx_b=0.85; gfx_a=0.7;
-    gfx_line(i, waveform_h, i, sy);
-    v > 1 ? (
-      gfx_r=1; gfx_g=0; gfx_b=0.6; gfx_a=1;
-      gr_y = (1/v) * waveform_h;
-      gfx_line(i, 0, i, waveform_h - gr_y);
-    );
+    v = window[slider4 ? (i + window_index + 1) % screen_w : i]; v_db = 20*log10(max(v, 0.00001));
+    y_point = screen_y + screen_h - (slider3 ? ((max(v_db, min_db) - min_db)/(0 - min_db) * screen_h) : (v * screen_h / v_scale));
+    y_point = max(y_point, screen_y); draw_x = screen_x + i;
+    gfx_r=0.2; gfx_g=1.0; gfx_b=0.3; gfx_a=0.8;
+    v > 1.0 ? ( gfx_line(draw_x, screen_y + screen_h, draw_x, y_zero_db); ) : ( gfx_line(draw_x, screen_y + screen_h, draw_x, y_point); );
+    v > 1.0 ? ( gfx_r=1.0; gfx_g=0.1; gfx_b=0.1; gfx_a=1.0; gfx_line(draw_x, y_zero_db, draw_x, y_point); );
     i+=1;
+  ); gfx_a=1;
+
+  gfx_setfont(8, "Arial", 11, 'b'); 
+  gfx_measurestr("INPUT GAIN", igw, igh); draw_sharp_chrome("INPUT GAIN", k1_x - igw/2, top_label_y);
+  gfx_measurestr("MAX PEAK REDUCTION", prw, prh); draw_sharp_chrome("MAX PEAK REDUCTION", disp_x + (disp_w - prw)/2, top_label_y);
+  gfx_measurestr("MAKEUP", muw, muh); draw_sharp_chrome("MAKEUP", k2_x - muw/2, top_label_y);
+
+  time_since_clip = t_gfx - last_clip_time;
+  is_held = (time_since_clip <= 3.0 && active_clip_val > 1.0 && last_clip_time > 0);
+  is_flashing = (time_since_clip <= 0.1 && last_clip_time > 0); 
+
+  function draw_led_box(x, y, w, h, db_val, flash, hold) (
+    gfx_r=0.08; gfx_g=0.08; gfx_b=0.1; gfx_rect(x-4, y-4, w+8, h+8); 
+    gfx_r=0.15; gfx_g=0.02; gfx_b=0.02; gfx_rect(x, y, w, h); 
+    db_val > 0.05 && hold ? (
+        flash ? ( blink = (sin(time_precise() * 35) + 1) * 0.5; gfx_r = 0.5 + (0.5 * blink); gfx_g = 0.05 * blink; gfx_b = 0.05 * blink;
+        ) : ( gfx_r=0.8; gfx_g=0.1; gfx_b=0.1; ); 
+    ) : ( gfx_r=0.25; gfx_g=0.02; gfx_b=0.02; ); 
+    gfx_setfont(7, "Courier New", floor(h*0.7), 'b');
+    db_val > 0.05 && hold ? sprintf(#str_val, "-%.1f", db_val) : sprintf(#str_val, " 0.0"); 
+    gfx_measurestr(#str_val, sw, sh); gfx_x = x + (w-sw)/2; gfx_y = y + (h-sh)/2 + 2; gfx_drawstr(#str_val);
   );
 
-  // Panel Inferior
-  gfx_r=0.4; gfx_g=0.4; gfx_b=0.5; gfx_a=1; gfx_line(0, waveform_h, gfx_w, waveform_h, 2);
+  db_max = 20 * log10(gr_max); draw_led_box(disp_x, disp1_y, disp_w, disp_h, db_max, 0, 1);
+  gfx_setfont(8, "Arial", 11, 'b'); gfx_measurestr("ACTIVE CLIP", acw, ach); draw_sharp_chrome("ACTIVE CLIP", disp_x + (disp_w - acw)/2, disp2_lbl_y);
+  db_act = 20 * log10(active_clip_val); draw_led_box(disp_x, disp2_y, disp_w, disp_h, db_act, is_flashing, is_held);
 
-  // Dibujar Knob GAIN
-  gfx_setfont(1, "Arial", 12, 'b');
-  gfx_r=1; gfx_g=1; gfx_b=1; gfx_a=0.8;
-  gfx_measurestr("GAIN", lw, lh);
-  gfx_x = k1_x - lw/2; gfx_y = k_y - k_r - 25; gfx_drawstr("GAIN");
-  gfx_r=0.15; gfx_g=0.15; gfx_b=0.18; gfx_circle(k1_x, k_y, k_r, 1, 1); // Fondo
-  angle = (slider1/36 * 1.7 * $pi) - 1.35 * $pi;
-  gfx_r=0; gfx_g=0.9; gfx_b=0.85; gfx_line(k1_x + (k_r-15)*cos(angle), k_y + (k_r-15)*sin(angle), k1_x + (k_r-5)*cos(angle), k_y + (k_r-5)*sin(angle), 3);
-  sprintf(s1, "%.1f dB", slider1); gfx_measurestr(s1, vw, vh);
-  gfx_x = k1_x - vw/2; gfx_y = k_y + k_r + 10; gfx_drawstr(s1);
+  function draw_vintage_knob(kx, ky, r, val, min_v, max_v) (
+    gfx_r=0.05; gfx_g=0.08; gfx_b=0.1; gfx_circle(kx+3, ky+4, r, 1, 1);
+    gfx_r=0.15; gfx_g=0.15; gfx_b=0.18; gfx_circle(kx, ky, r, 1, 1);
+    gfx_r=0.25; gfx_g=0.25; gfx_b=0.28; gfx_circle(kx, ky, r-4, 1, 1);
+    t_ang = -1.35 * $pi; t_step = (1.7 * $pi) / 10; t_cnt = 0;
+    while(t_cnt <= 10) ( gfx_r=0.7; gfx_g=0.7; gfx_b=0.75; gfx_line(kx+(r+8)*cos(t_ang), ky+(r+8)*sin(t_ang), kx+(r+16)*cos(t_ang), ky+(r+16)*sin(t_ang), 2); t_ang += t_step; t_cnt += 1; );
+    ang = ((val - min_v) / (max_v - min_v) * 1.7 * $pi) - 1.35 * $pi;
+    gfx_r=0.9; gfx_g=0.9; gfx_b=0.9; gfx_line(kx + (r-18)*cos(ang), ky + (r-18)*sin(ang), kx + (r-2)*cos(ang), ky + (r-2)*sin(ang), 3);
+    gfx_setfont(5, "Arial", 14, 'b'); val > 0 && min_v < 0 ? sprintf(#sv, "+%.1f", val) : sprintf(#sv, "%.1f", val); 
+    gfx_measurestr(#sv, vw, vh); draw_sharp_chrome(#sv, kx - vw/2, ky + r + 15);
+  );
 
-  // Dibujar Knob MAKEUP
-  gfx_r=1; gfx_g=1; gfx_b=1; gfx_measurestr("MAKEUP", lw2, lh2);
-  gfx_x = k2_x - lw2/2; gfx_y = k_y - k_r - 25; gfx_drawstr("MAKEUP");
-  gfx_r=0.15; gfx_g=0.15; gfx_b=0.18; gfx_circle(k2_x, k_y, k_r, 1, 1);
-  angle2 = (slider2/24 * 1.7 * $pi) - 1.35 * $pi;
-  gfx_r=0; gfx_g=0.9; gfx_b=0.85; gfx_line(k2_x + (k_r-15)*cos(angle2), k_y + (k_r-15)*sin(angle2), k2_x + (k_r-5)*cos(angle2), k_y + (k_r-5)*sin(angle2), 3);
-  sprintf(s2, "%.1f dB", slider2); gfx_measurestr(s2, vw2, vh2);
-  gfx_x = k2_x - vw2/2; gfx_y = k_y + k_r + 10; gfx_drawstr(s2);
+  draw_vintage_knob(k1_x, k_y, k_r, slider1, 0.0, 36.0);
+  draw_vintage_knob(k2_x, k_y, k_r, slider2, -24.0, 24.0);
 
-  // Pantalla GR
-  gr_db = 20 * log10(gr_max);
-  gfx_r=0.07; gfx_g=0.07; gfx_b=0.08; gfx_rect(disp_x, disp_y, disp_w, disp_h, 1);
-  gr_db > 0.1 ? (gfx_r=1; gfx_g=0; gfx_b=0.6;) : (gfx_r=0.3; gfx_g=0.3; gfx_b=0.3;);
-  gfx_rect(disp_x, disp_y, disp_w, disp_h, 0);
-  gfx_setfont(3, "Arial", floor(disp_h*0.6), 'b');
-  sprintf(str, "%.1f", gr_db); gfx_measurestr(str, sw, sh);
-  gfx_x = disp_x + (disp_w-sw)/2; gfx_y = disp_y + (disp_h-sh)/2; gfx_drawstr(str);
+  function draw_standard_btn(x, y, w, h, is_active, int_lbl) (
+    gfx_r=0.05; gfx_g=0.08; gfx_b=0.1; gfx_rect(x+2, y+2, w, h); 
+    is_active ? (gfx_r=0.45; gfx_g=0.5; gfx_b=0.55) : (gfx_r=0.35; gfx_g=0.4; gfx_b=0.45); gfx_rect(x, y, w, h); 
+    is_active ? ( gfx_r=0.15; gfx_g=0.2; gfx_b=0.25; gfx_line(x, y, x+w, y, 2); gfx_line(x, y, x, y+h, 2);
+    ) : ( gfx_r=0.6; gfx_g=0.65; gfx_b=0.7; gfx_line(x, y, x+w, y, 2); gfx_line(x, y, x, y+h, 2); ); 
+    led_r = 2.5; led_x = x + 8; led_y = y + h/2;
+    is_active ? (gfx_r=0.2; gfx_g=1.0; gfx_b=0.3; gfx_circle(led_x, led_y, led_r, 1, 1);) : (gfx_r=0.1; gfx_g=0.2; gfx_b=0.1; gfx_circle(led_x, led_y, led_r, 1, 1););
+    gfx_setfont(9, "Arial", 9, 'b'); gfx_measurestr(int_lbl, iw, ih);
+    is_active ? (gfx_r=0.9; gfx_g=0.95; gfx_b=1.0;) : (gfx_r=0.7; gfx_g=0.75; gfx_b=0.8;);
+    gfx_x = x + 15 + (w - 15 - iw)/2; gfx_y = y + (h - ih)/2; gfx_drawstr(int_lbl);
+  );
 
-  // Botones finales
-  gfx_setfont(1, "Arial", 11, 'b');
+  draw_standard_btn(ag_x, bottom_btn_y, ag_w, btn_h, slider5, "ON"); 
+  mode_str = slider4 ? "SCAN" : "SCROLL"; 
+  draw_standard_btn(mode_x, bottom_btn_y, mode_w, btn_h, slider4, mode_str); 
+  draw_standard_btn(os1_x, bottom_btn_y, os_w, btn_h, slider6 == 0, "OFF"); 
+  draw_standard_btn(os2_x, bottom_btn_y, os_w, btn_h, slider6 == 1, "2X");  
+  draw_standard_btn(os3_x, bottom_btn_y, os_w, btn_h, slider6 == 2, "4X");  
 
-  gfx_r=0.1; gfx_g=0.1; gfx_b=0.12; gfx_rect(disp_x + disp_w - btn_w, btn_y, btn_w, 25, 1);
-  slider4 ? (gfx_r=0; gfx_g=0.9; gfx_b=0.85;) : (gfx_r=0.4; gfx_g=0.4; gfx_b=0.4;);
-  gfx_rect(disp_x + disp_w - btn_w, btn_y, btn_w, 25, 0);
-  gfx_x = disp_x + disp_w - btn_w + 5; gfx_y = btn_y + 7; gfx_drawstr(slider4 ? "SCAN" : "SCROLL");
+  gfx_setfont(8, "Arial", 10, 'b');
+  gfx_measurestr("GAIN COMPENSATION", agw, agh); draw_sharp_chrome("GAIN COMPENSATION", ag_x + (ag_w - agw)/2, bottom_lbl_y);
+  gfx_measurestr("DISPLAY MODE", dmw, dmh); draw_sharp_chrome("DISPLAY MODE", mode_x + (mode_w - dmw)/2, bottom_lbl_y);
+  gfx_measurestr("OVERSAMPLING", osw_txt, osh_txt); draw_sharp_chrome("OVERSAMPLING", os_start_x + (os_total_w - osw_txt)/2, bottom_lbl_y);
