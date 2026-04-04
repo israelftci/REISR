@@ -20,7 +20,7 @@
     <reapack name="Pro-TecEQ.jsfx" type="effect" desc="EQ, Pultec, Saturation">
       <version name="2.0.0" author="Israel Torres Mayoral" time="2026-04-04T02:45:24.000Z">
         <changelog></changelog>
-        <source>https://raw.githubusercontent.com/israelftci/REISR/refs/heads/main/SpectrumAnalizer.jsfx</source>
+        <source>https://raw.githubusercontent.com/israelftci/REISR/refs/heads/main/Pro-TecEQ.jsfx</source>
       </version>
     </reapack>
   </category>
