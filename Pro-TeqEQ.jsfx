@@ -1,0 +1,434 @@
+desc: Pro-Tec EQ (EQP-1A)
+tags: EQ, Pultec, UI, Analyzer, Saturation
+version: 2.0.0
+author: Israel Torres Mayoral
+license: GPL v3
+
+options:no_meter
+
+slider1:1<0,3,1{20,30,60,100}>-Low Boost Freq (Hz)
+slider2:0<0,10,0.1>-Low Boost
+slider3:0<0,10,0.1>-Low Attenuate
+slider10:3<0,3,1{20,30,60,100}>-Low Atten Freq (Hz)
+slider4:4<0,6,1{3k, 4k, 5k, 8k, 10k, 12k, 16k}>-Peak Freq (Hz)
+slider5:0<0,10,0.05>-Peak Q
+slider6:0<0,10,0.1>-Peak Boost
+slider7:0<0,2,1{5k,10k,20k}>-High Atten Freq (Hz)
+slider8:0<0,10,0.1>-High Attenuate
+slider11:0<0,10,0.1>-Sat Drive
+slider12:0<0,2,1{Tube,Tape,Trans}>-Sat Mode
+slider13:0<0,1,1{Off,On}>-Sat Active
+slider9:5<0,10,0.01>-Output
+
+in_pin:L in
+in_pin:R in
+out_pin:L out
+out_pin:R out
+
+@init
+  #plugin_name = "Pro-Tec EQ (EQP-1A)";
+  ui_active_ctrl = 0;
+  ui_drag_start_y = 0;
+  ui_drag_start_v = 0;
+  mouse_prev_cap = 0;
+  dbl_click_timer = 0;
+  dbl_click_ctrl = 0;
+  fft_size = 2048;
+  fft_win = 10000;         
+  fft_buf_pre = 15000;     
+  fft_buf_post = 20000;    
+  fft_ws_pre = 25000;      
+  fft_ws_post = 30000;     
+  fft_smooth_pre = 35000;  
+  fft_smooth_post = 40000; 
+  eq_curve_y = 45000;
+  i = 0;
+  while (i < fft_size) (
+    fft_win[i] = 0.5 * (1 - cos(2 * $pi * i / (fft_size - 1)));
+    i < (fft_size/2) ? fft_smooth_post[i] = -120.0; 
+    i += 1;
+  );
+  buf_pos = 0;
+  update_dsp = 1;
+  play_state_prev = play_state;
+
+@slider
+  update_dsp = 1;
+
+@block
+  (play_state & 1) != (play_state_prev & 1) ? (
+    (play_state & 1) ? (
+      xl1_1=0; xl2_1=0; yl1_1=0; yl2_1=0;
+      xr1_1=0; xr2_1=0; yr1_1=0; yr2_1=0;
+      xl1_2=0; xl2_2=0; yl1_2=0; yl2_2=0;
+      xr1_2=0; xr2_2=0; yr1_2=0; yr2_2=0;
+      xl1_3=0; xl2_3=0; yl1_3=0; yl2_3=0;
+      xr1_3=0; xr2_3=0; yr1_3=0; yr2_3=0;
+      xl1_4=0; xl2_4=0; yl1_4=0; yl2_4=0;
+      xr1_4=0; xr2_4=0; yr1_4=0; yr2_4=0;
+      i = 0; while (i < fft_size) ( fft_buf_pre[i] = 0; fft_buf_post[i] = 0; i += 1; );
+      i = 0; while (i <= fft_size/2) ( fft_smooth_pre[i] = -120; fft_smooth_post[i] = -120; i += 1; );
+    );
+    play_state_prev = play_state;
+  );
+
+  update_dsp ? (
+    f0_lb = slider1 == 0 ? 20 : slider1 == 1 ? 30 : slider1 == 2 ? 60 : 100;
+    A_lb = 10^((slider2 * 1.5) / 40);
+    w0_lb = 2 * $pi * f0_lb / srate;
+    alpha_lb = sin(w0_lb) / 1.414;
+    a0_lb = (A_lb+1) + (A_lb-1)*cos(w0_lb) + 2*sqrt(A_lb)*alpha_lb;
+    b0_lb = (A_lb*( (A_lb+1) - (A_lb-1)*cos(w0_lb) + 2*sqrt(A_lb)*alpha_lb )) / a0_lb;
+    b1_lb = (2*A_lb*( (A_lb-1) - (A_lb+1)*cos(w0_lb) )) / a0_lb;
+    b2_lb = (A_lb*( (A_lb+1) - (A_lb-1)*cos(w0_lb) - 2*sqrt(A_lb)*alpha_lb )) / a0_lb;
+    a1_lb = (-2*( (A_lb-1) + (A_lb+1)*cos(w0_lb) )) / a0_lb;
+    a2_lb = ((A_lb+1) + (A_lb-1)*cos(w0_lb) - 2*sqrt(A_lb)*alpha_lb) / a0_lb;
+
+    f0_la = slider10 == 0 ? 20 : slider10 == 1 ? 30 : slider10 == 2 ? 60 : 100;
+    A_la = 10^((-slider3 * 1.5) / 40);
+    w0_la = 2 * $pi * f0_la / srate;
+    alpha_la = sin(w0_la) / 1.414;
+    a0_la = (A_la+1) + (A_la-1)*cos(w0_la) + 2*sqrt(A_la)*alpha_la;
+    b0_la = (A_la*( (A_la+1) - (A_la-1)*cos(w0_la) + 2*sqrt(A_la)*alpha_la )) / a0_la;
+    b1_la = (2*A_la*( (A_la-1) - (A_la+1)*cos(w0_la) )) / a0_la;
+    b2_la = (A_la*( (A_la+1) - (A_la-1)*cos(w0_la) - 2*sqrt(A_la)*alpha_la )) / a0_la;
+    a1_la = (-2*( (A_la-1) + (A_la+1)*cos(w0_la) )) / a0_la;
+    a2_la = ((A_la+1) + (A_la-1)*cos(w0_la) - 2*sqrt(A_la)*alpha_la) / a0_la;
+
+    f0_pk = slider4 == 0 ? 3000 : slider4 == 1 ? 4000 : slider4 == 2 ? 5000 : slider4 == 3 ? 8000 : slider4 == 4 ? 10000 : slider4 == 5 ? 12000 : 16000;
+    A_pk = 10^((slider6 * 1.5) / 40);
+    w0_pk = 2 * $pi * f0_pk / srate;
+    Q_pk = 0.5 + (slider5 / 10) * 4;
+    alpha_pk = sin(w0_pk) / (2 * Q_pk);
+    a0_pk = 1 + alpha_pk / A_pk;
+    b0_pk = (1 + alpha_pk * A_pk) / a0_pk;
+    b1_pk = (-2 * cos(w0_pk)) / a0_pk;
+    b2_pk = (1 - alpha_pk * A_pk) / a0_pk;
+    a1_pk = (-2 * cos(w0_pk)) / a0_pk;
+    a2_pk = (1 - alpha_pk / A_pk) / a0_pk;
+
+    f0_ha = slider7 == 0 ? 5000 : slider7 == 1 ? 10000 : 20000;
+    A_ha = 10^((-slider8 * 1.5) / 40);
+    w0_ha = 2 * $pi * f0_ha / srate;
+    alpha_ha = sin(w0_ha) / 1.414;
+    a0_ha = (A_ha+1) - (A_ha-1)*cos(w0_ha) + 2*sqrt(A_ha)*alpha_ha;
+    b0_ha = (A_ha*( (A_ha+1) + (A_ha-1)*cos(w0_ha) + 2*sqrt(A_ha)*alpha_ha )) / a0_ha;
+    b1_ha = (-2*A_ha*( (A_ha-1) + (A_ha+1)*cos(w0_ha) )) / a0_ha;
+    b2_ha = (A_ha*( (A_ha+1) + (A_ha-1)*cos(w0_ha) - 2*sqrt(A_ha)*alpha_ha )) / a0_ha;
+    a1_ha = (2*( (A_ha-1) - (A_ha+1)*cos(w0_ha) )) / a0_ha;
+    a2_ha = ((A_ha+1) - (A_ha-1)*cos(w0_ha) - 2*sqrt(A_ha)*alpha_ha) / a0_ha;
+
+    out_gain = 10^((-18+(36*(slider9/10)))/20);
+    sat_drive = 1 + (slider11 * 0.5); 
+    sat_comp = 1 / sqrt(sat_drive);   
+    update_dsp = 0;
+    update_curve = 1;
+  );
+
+@sample
+  fft_buf_pre[buf_pos] = (spl0 + spl1) * 0.5;
+
+  out_L1 = b0_lb*spl0 + b1_lb*xl1_1 + b2_lb*xl2_1 - a1_lb*yl1_1 - a2_lb*yl2_1;
+  xl2_1 = xl1_1; xl1_1 = spl0; yl2_1 = yl1_1; yl1_1 = out_L1;
+  out_R1 = b0_lb*spl1 + b1_lb*xr1_1 + b2_lb*xr2_1 - a1_lb*yr1_1 - a2_lb*yr2_1;
+  xr2_1 = xr1_1; xr1_1 = spl1; yr2_1 = yr1_1; yr1_1 = out_R1;
+
+  out_L2 = b0_la*out_L1 + b1_la*xl1_2 + b2_la*xl2_2 - a1_la*yl1_2 - a2_la*yl2_2;
+  xl2_2 = xl1_2; xl1_2 = out_L1; yl2_2 = yl1_2; yl1_2 = out_L2;
+  out_R2 = b0_la*out_R1 + b1_la*xr1_2 + b2_la*xr2_2 - a1_la*yr1_2 - a2_la*yr2_2;
+  xr2_2 = xr1_2; xr1_2 = out_R1; yr2_2 = yr1_2; yr1_2 = out_R2;
+
+  out_L3 = b0_pk*out_L2 + b1_pk*xl1_3 + b2_pk*xl2_3 - a1_pk*yl1_3 - a2_pk*yl2_3;
+  xl2_3 = xl1_3; xl1_3 = out_L2; yl2_3 = yl1_3; yl1_3 = out_L3;
+  out_R3 = b0_pk*out_R2 + b1_pk*xr1_3 + b2_pk*xr2_3 - a1_pk*yr1_3 - a2_pk*yr2_3;
+  xr2_3 = xr1_3; xr1_3 = out_R2; yr2_3 = yr1_3; yr1_3 = out_R3;
+
+  out_L4 = b0_ha*out_L3 + b1_ha*xl1_4 + b2_ha*xl2_4 - a1_ha*yl1_4 - a2_ha*yl2_4;
+  xl2_4 = xl1_4; xl1_4 = out_L3; yl2_4 = yl1_4; yl1_4 = out_L4;
+  out_R4 = b0_ha*out_R3 + b1_ha*xr1_4 + b2_ha*xr2_4 - a1_ha*yr1_4 - a2_ha*yr2_4;
+  xr2_4 = xr1_4; xr1_4 = out_R3; yr2_4 = yr1_4; yr1_4 = out_R4;
+
+  (slider13 == 1) ? (
+    xL = out_L4 * sat_drive; xR = out_R4 * sat_drive;
+    slider12 == 0 ? ( 
+      xL = xL > 0 ? atan(xL) : atan(xL*1.2);
+      xR = xR > 0 ? atan(xR) : atan(xR*1.2);
+    ) : slider12 == 1 ? ( 
+      xL = xL / (1 + abs(xL));
+      xR = xR / (1 + abs(xR));
+    ) : ( 
+      xL = max(min(xL, 1.2), -1.2); xL = xL - (xL*xL*xL)/4.32;
+      xR = max(min(xR, 1.2), -1.2); xR = xR - (xR*xR*xR)/4.32;
+    );
+    out_L4 = xL * sat_comp; out_R4 = xR * sat_comp;
+  );
+
+  spl0 = out_L4 * out_gain;
+  spl1 = out_R4 * out_gain;
+
+  fft_buf_post[buf_pos] = (spl0 + spl1) * 0.5;
+  buf_pos = (buf_pos + 1) % fft_size;
+
+@gfx 1100 680
+
+  function get_bq_db(fq, b0, b1, b2, a1, a2) (
+    w_ = 2 * $pi * fq / srate; cw = cos(w_); sw = sin(w_);
+    c2w = cos(2*w_); s2w = sin(2*w_);
+    num = (b0 + b1*cw + b2*c2w)^2 + (b1*sw + b2*s2w)^2;
+    den = (1 + a1*cw + a2*c2w)^2 + (a1*sw + a2*s2w)^2;
+    10 * log10(num / den);
+  );
+
+  function draw_sharp_chrome(str, x, y) (
+    gfx_r=0.02; gfx_g=0.03; gfx_b=0.05; gfx_a=0.9; gfx_x=x+1; gfx_y=y+1; gfx_drawstr(str);
+    gfx_r=0.96; gfx_g=0.98; gfx_b=1.0; gfx_a=1.0; gfx_x=x; gfx_y=y; gfx_drawstr(str);
+  );
+
+  function draw_vintage_knob(kx, ky, r, val, min_v, max_v, lbl_val) (
+    kx = kx * sc + ofs_x; ky = ky * sc + ofs_y; r = r * sc;
+    gfx_r=0.05; gfx_g=0.08; gfx_b=0.1; gfx_circle(kx+3*sc, ky+4*sc, r, 1, 1);
+    gfx_r=0.15; gfx_g=0.15; gfx_b=0.18; gfx_circle(kx, ky, r, 1, 1);
+    gfx_r=0.25; gfx_g=0.25; gfx_b=0.28; gfx_circle(kx, ky, r-4*sc, 1, 1);
+    t_ang = -1.35 * $pi; t_step = (1.7 * $pi) / 10; t_cnt = 0;
+    while(t_cnt <= 10) ( gfx_r=0.7; gfx_g=0.7; gfx_b=0.75; gfx_line(kx+(r+8*sc)*cos(t_ang), ky+(r+8*sc)*sin(t_ang), kx+(r+16*sc)*cos(t_ang), ky+(r+16*sc)*sin(t_ang), 1); t_ang += t_step; t_cnt += 1; );
+    ang = ((val - min_v) / (max_v - min_v) * 1.7 * $pi) - 1.35 * $pi;
+    gfx_r=0.9; gfx_g=0.9; gfx_b=0.9; gfx_line(kx + (r-18*sc)*cos(ang), ky + (r-18*sc)*sin(ang), kx + (r-2*sc)*cos(ang), ky + (r-2*sc)*sin(ang), 1);
+    gfx_setfont(5, "Arial", max(1, 11*sc), 'b'); 
+    gfx_measurestr(lbl_val, vw, vh); 
+    draw_sharp_chrome(lbl_val, kx - vw/2, ky + r + 15*sc);
+  );
+
+  function draw_vintage_switch(kx, ky, r, val, min_v, max_v, lbl_val) (
+    kx = kx * sc + ofs_x; ky = ky * sc + ofs_y; r = r * sc;
+    gfx_r=0.05; gfx_g=0.08; gfx_b=0.1; gfx_circle(kx+2*sc, ky+3*sc, r-5*sc, 1, 1);
+    s_ang_start = -1.35 * $pi; s_step = (1.7 * $pi) / (max_v - min_v); s_i = 0;
+    while(s_i <= (max_v - min_v)) (
+      a = s_ang_start + (s_i * s_step);
+      gfx_r=0.6; gfx_g=0.65; gfx_b=0.7; gfx_circle(kx + (r+8*sc)*cos(a), ky + (r+8*sc)*sin(a), 2*sc, 1, 1);
+      s_i += 1;
+    );
+    gfx_r=0.15; gfx_g=0.15; gfx_b=0.18; gfx_circle(kx, ky, r-5*sc, 1, 1);
+    gfx_r=0.25; gfx_g=0.25; gfx_b=0.28; gfx_circle(kx, ky, r-10*sc, 1, 1);
+    ang = ((val - min_v) / (max_v - min_v) * 1.7 * $pi) - 1.35 * $pi;
+    gfx_r=0.95; gfx_g=0.95; gfx_b=0.95; gfx_line(kx, ky, kx + (r-5*sc)*cos(ang), ky + (r-5*sc)*sin(ang), max(1, 2*sc));
+    gfx_setfont(5, "Arial", max(1, 11*sc), 'b'); 
+    gfx_measurestr(lbl_val, vw, vh); 
+    draw_sharp_chrome(lbl_val, kx - vw/2, ky + r + 15*sc);
+  );
+
+  function draw_led_button(kx, ky, r, active, lbl_val) (
+    kx = kx * sc + ofs_x; ky = ky * sc + ofs_y; r = r * sc;
+    gfx_r=0.08; gfx_g=0.08; gfx_b=0.1; gfx_circle(kx, ky, r, 1, 1);
+    gfx_r=0.15; gfx_g=0.15; gfx_b=0.18; gfx_circle(kx, ky, r-2*sc, 1, 1);
+    active ? (
+      gfx_r=1.0; gfx_g=0.2; gfx_b=0.2; gfx_a=1.0; gfx_circle(kx, ky, r-6*sc, 1, 1);
+      gfx_r=1.0; gfx_g=0.4; gfx_b=0.4; gfx_a=0.3; gfx_circle(kx, ky, r-3*sc, 1, 1); 
+    ) : (
+      gfx_r=0.2; gfx_g=0.05; gfx_b=0.05; gfx_a=1.0; gfx_circle(kx, ky, r-6*sc, 1, 1);
+    );
+    gfx_a=1.0;
+    gfx_setfont(5, "Arial", max(1, 10*sc), 'b'); 
+    gfx_measurestr(lbl_val, vw, vh); 
+    draw_sharp_chrome(lbl_val, kx - vw/2, ky + r + 8*sc);
+  );
+
+  function draw_section_title(str, cx, y, fsz) (
+    cx = cx * sc + ofs_x; y = y * sc + ofs_y; fsz = max(1, fsz * sc);
+    gfx_setfont(5, "Arial", fsz, 'b'); 
+    t_x = cx; gfx_r=0.02; gfx_g=0.03; gfx_b=0.05; gfx_a=0.9; 
+    gfx_x=t_x+(Section_Alinea_X*sc)+1; gfx_y=y+1; gfx_drawstr(str); 
+    gfx_r=0.96; gfx_g=0.98; gfx_b=1.0; gfx_a=1.0; 
+    gfx_x=t_x+(Section_Alinea_X*sc); gfx_y=y; gfx_drawstr(str); 
+  );
+
+  function draw_credit_line(str, cx, y, r, g, b, is_left, font_sz) (
+    cx = cx * sc + ofs_x; y = y * sc + ofs_y; font_sz = max(1, font_sz * sc);
+    gfx_setfont(5, "Arial", font_sz, 'b'); gfx_measurestr(str, tw, th);
+    t_x = is_left ? cx : cx - tw/2; gfx_r=0.02; gfx_g=0.03; gfx_b=0.05; gfx_a=0.9; 
+    gfx_x=t_x+1; gfx_y=y+1; gfx_drawstr(str); gfx_r=r; gfx_g=g; gfx_b=b; gfx_a=1.0; 
+    gfx_x=t_x; gfx_y=y; gfx_drawstr(str); 
+  );
+
+  sc = min(gfx_w / 1100, gfx_h / 680);
+  ofs_x = (gfx_w - (1100 * sc)) / 2;
+  ofs_y = (gfx_h - (680 * sc)) / 2;
+
+  (gfx_w != last_w || gfx_h != last_h) ? ( bg_drawn = 0; update_curve = 1; );
+  last_w = gfx_w; last_h = gfx_h;
+
+  bg_drawn == 0 ? (
+      gfx_dest = 1; gfx_setimgdim(1, gfx_w, gfx_h);
+      gfx_r=0.12; gfx_g=0.18; gfx_b=0.25; gfx_rect(0,0,gfx_w,gfx_h);
+      i_t=0; while(i_t < gfx_h)(
+        h_val1 = sin(i_t * 12.98) * 43758.54; r_val1 = h_val1 - floor(h_val1);
+        gfx_r=0.6; gfx_g=0.75; gfx_b=0.9; gfx_a = 0.02 + (r_val1 * 0.04); gfx_line(0, i_t, gfx_w, i_t);
+        i_t+=max(1, 2*sc);
+      );
+      gfx_a=1; gfx_r=0.25; gfx_g=0.32; gfx_b=0.4; gfx_line(0, 0, gfx_w, 0, 1); 
+      gfx_r=0.05; gfx_g=0.08; gfx_b=0.12; gfx_line(0, gfx_h-1, gfx_w, gfx_h-1, 1);
+      gfx_r=0.08; gfx_g=0.08; gfx_b=0.1; 
+      gfx_circle(15*sc, 15*sc, 6*sc, 1, 1); gfx_circle(gfx_w-15*sc, 15*sc, 6*sc, 1, 1); 
+      gfx_circle(15*sc, gfx_h-15*sc, 6*sc, 1, 1); gfx_circle(gfx_w-15*sc, gfx_h-15*sc, 6*sc, 1, 1);
+      gfx_r=0.3; gfx_g=0.3; gfx_b=0.35; 
+      gfx_line(12*sc, 12*sc, 18*sc, 18*sc, 1); gfx_line(gfx_w-18*sc, 12*sc, gfx_w-12*sc, 18*sc, 1); 
+      gfx_line(12*sc, gfx_h-18*sc, 18*sc, gfx_h-12*sc, 1); gfx_line(gfx_w-18*sc, gfx_h-18*sc, gfx_w-12*sc, gfx_h-12*sc, 1);
+      
+      Section_Alinea_X = -30;
+      draw_section_title("LOW BOOST", 100, 360, 11);
+      draw_section_title("LOW ATTEN", 210, 360, 11);
+      draw_section_title("PEAK Q",     340, 360, 11);
+      draw_section_title("PEAK BOOST", 450, 360, 11);
+      draw_section_title("HIGH ATTEN", 600, 360, 11);
+      draw_section_title("SATURATION", 780, 360, 11);
+      draw_section_title("OUTPUT",     960, 360, 11);
+      draw_section_title("BOOST HZ",   100, 510, 11);
+      draw_section_title("ATTEN HZ",   210, 510, 11);
+      draw_section_title("PEAK HZ",    395, 510, 11);
+      draw_section_title("HSF HZ",     600, 510, 11);
+      draw_section_title("DRIVE",      830, 510, 11);
+
+      c_y = 510; c_x = 930; 
+      draw_credit_line(#plugin_name, c_x, c_y, 0.9, 0.9, 0.9, 1, 15); 
+      draw_credit_line("Version 2.0.0", c_x, c_y+18, 0.6, 0.6, 0.6, 1, 10);
+      draw_credit_line("Autor: Israel Torres Mayoral", c_x, c_y+33, 0.6, 0.6, 0.6, 1, 10);
+      draw_credit_line("israelftci@gmail.com", c_x, c_y+48, 0.6, 0.6, 0.6, 1, 10);
+      draw_credit_line("Donations:", c_x, c_y+68, 0.9, 0.75, 0.2, 1, 10);
+      draw_credit_line("paypal.me/israelftci", c_x, c_y+83, 0.9, 0.75, 0.2, 1, 10);
+
+      viz_w = 1000 * sc; viz_h = 300 * sc; viz_x = 50 * sc + ofs_x; viz_y = 25 * sc + ofs_y;
+      gfx_r=0.02; gfx_g=0.02; gfx_b=0.03; gfx_a=1.0; 
+      gfx_line(viz_x, viz_y, viz_x+viz_w, viz_y, 1); gfx_line(viz_x, viz_y, viz_x, viz_y+viz_h, 1);
+      gfx_line(viz_x+viz_w, viz_y, viz_x+viz_w, viz_y+viz_h, 1); gfx_line(viz_x, viz_y+viz_h, viz_x+viz_w, viz_y+viz_h, 1);
+
+      gfx_dest = 3; gfx_setimgdim(3, viz_w, viz_h);
+      gfx_r=0.04; gfx_g=0.05; gfx_b=0.08; gfx_a=1.0; gfx_rect(0, 0, viz_w, viz_h);
+      gfx_r=1.0; gfx_g=1.0; gfx_b=1.0; gfx_a=0.05;
+      freqs = 100000; freqs[0]=20; freqs[1]=50; freqs[2]=100; freqs[3]=200; freqs[4]=500; freqs[5]=1000; freqs[6]=2000; freqs[7]=5000; freqs[8]=10000; freqs[9]=20000;
+      i=0; while(i < 10) (
+        f_val = freqs[i]; x_guide = viz_w * (log(f_val / 20) / log(1000));
+        gfx_line(x_guide, 0, x_guide, viz_h); gfx_a=0.3; gfx_setfont(1, "Arial", max(1, 9*sc), '');
+        f_val >= 1000 ? sprintf(#g_str, "%dk", f_val/1000) : sprintf(#g_str, "%d", f_val);
+        gfx_x = x_guide + 2; gfx_y = viz_h - 12*sc; gfx_drawstr(#g_str); gfx_a=0.05; i+=1;
+      );
+      bg_drawn = 1; gfx_dest = -1;
+  );
+  
+  gfx_a=1; gfx_x=0; gfx_y=0; gfx_blit(1, 1, 0);
+
+  (play_state & 1) ? (
+    i = 0; p = buf_pos;
+    while (i < fft_size) (
+      fft_ws_pre[i*2]   = fft_buf_pre[p] * fft_win[i]; fft_ws_pre[i*2+1] = 0; 
+      fft_ws_post[i*2]  = fft_buf_post[p] * fft_win[i]; fft_ws_post[i*2+1]= 0; 
+      p = (p + 1) % fft_size; i += 1;
+    );
+    fft(fft_ws_pre, fft_size); fft_permute(fft_ws_pre, fft_size);
+    fft(fft_ws_post, fft_size); fft_permute(fft_ws_post, fft_size);
+    i = 0;
+    while (i <= fft_size/2) (
+      re1 = fft_ws_pre[i*2]; im1 = fft_ws_pre[i*2+1]; mag1 = sqrt(re1*re1 + im1*im1) / (fft_size/2);
+      db_pre = 20 * log10(mag1 + 0.00001); fft_smooth_pre[i] = max(fft_smooth_pre[i] - 1.5, db_pre);
+      re2 = fft_ws_post[i*2]; im2 = fft_ws_post[i*2+1]; mag2 = sqrt(re2*re2 + im2*im2) / (fft_size/2);
+      db_post = 20 * log10(mag2 + 0.00001); fft_smooth_post[i] = max(fft_smooth_post[i] - 1.5, db_post);
+      i += 1;
+    );
+  ) : (
+    i = 0; while (i < fft_size) ( fft_buf_pre[i] = 0; fft_buf_post[i] = 0; i += 1; );
+    i = 0; while (i <= fft_size/2) (
+      fft_smooth_pre[i] = max(fft_smooth_pre[i] - 3.0, -120.0);
+      fft_smooth_post[i] = max(fft_smooth_post[i] - 4.0, -120.0);
+      i += 1;
+    );
+  );
+
+  viz_w = 1000 * sc; viz_h = 300 * sc; mid_y = viz_h / 2;
+  
+  update_curve == 1 ? (
+    px = 0; safe_srate = max(srate, 44100); 
+    while (px <= viz_w) (
+      f = 20 * (1000 ^ (px / viz_w)); 
+      total_db = get_bq_db(f, b0_lb, b1_lb, b2_lb, a1_lb, a2_lb) + get_bq_db(f, b0_la, b1_la, b2_la, a1_la, a2_la) + get_bq_db(f, b0_pk, b1_pk, b2_pk, a1_pk, a2_pk) + get_bq_db(f, b0_ha, b1_ha, b2_ha, a1_ha, a2_ha);
+      eq_curve_y[px] = total_db * 12 * sc; px += 2;
+    );
+    update_curve = 0;
+  );
+
+  gfx_dest = 2; gfx_setimgdim(2, viz_w, viz_h); gfx_blit(3, 1, 0);
+
+  px = 0; safe_srate = max(srate, 44100); 
+  while (px <= viz_w) (
+    f = 20 * (1000 ^ (px / viz_w)); bin = (f * fft_size) / safe_srate; bin = min(max(bin, 0), fft_size/2);
+    b1 = floor(bin); b2 = min(b1 + 1, fft_size/2); frac = bin - b1; tilt_db = 3.0 * log(f / 20) / log(2); 
+    val_db_pre = (fft_smooth_pre[b1] * (1-frac) + fft_smooth_pre[b2] * frac) + tilt_db; y_pos_pre = viz_h - ((val_db_pre + 80) * (viz_h / 80));
+    gfx_r=0.0; gfx_g=0.6; gfx_b=0.5; gfx_a=0.45; gfx_line(px, viz_h, px, y_pos_pre);
+    val_db_post = (fft_smooth_post[b1] * (1-frac) + fft_smooth_post[b2] * frac) + tilt_db; y_pos_post = viz_h - ((val_db_post + 80) * (viz_h / 80));
+    gfx_r=1.0; gfx_g=1.0; gfx_b=1.0; gfx_a=0.7; px > 0 ? gfx_line(px-2, last_post_y, px, y_pos_post, 1); last_post_y = y_pos_post;
+    px += 2; 
+  );
+
+  gfx_r=0.0; gfx_g=0.9; gfx_b=1.0; gfx_a=1.0; px = 0; last_y = mid_y - eq_curve_y[0];
+  while (px <= viz_w) (
+    y_pos = mid_y - eq_curve_y[px]; px > 0 ? gfx_line(px-2, last_y, px, y_pos, 1); last_y = y_pos; px += 2;
+  );
+
+  gfx_dest = -1; gfx_x = 50 * sc + ofs_x; gfx_y = 25 * sc + ofs_y; gfx_blit(2, 1, 0); 
+
+  sprintf(#l_lb, "%.1f", slider2); sprintf(#l_la, "%.1f", slider3); sprintf(#l_pq, "%.2f", slider5); sprintf(#l_pb, "%.1f", slider6);
+  sprintf(#l_ha, "%.1f", slider8); sprintf(#l_out, "%.2f", slider9); sprintf(#l_sat, "%.1f", slider11);
+  #l_lhz_b = (slider1==0?"20":slider1==1?"30":slider1==2?"60":"100") += " Hz"; #l_lhz_a = (slider10==0?"20":slider10==1?"30":slider10==2?"60":"100") += " Hz";
+
+  draw_vintage_knob(100, 430, 35, slider2, 0, 10, #l_lb); draw_vintage_knob(210, 430, 35, slider3, 0, 10, #l_la);
+  draw_vintage_knob(340, 430, 35, slider5, 0, 10, #l_pq); draw_vintage_knob(450, 430, 35, slider6, 0, 10, #l_pb);
+  draw_vintage_knob(600, 430, 35, slider8, 0, 10, #l_ha); draw_vintage_knob(960, 430, 35, slider9, 0, 10, #l_out);
+  
+  draw_vintage_switch(100, 580, 35, slider1, 0, 3, #l_lhz_b); draw_vintage_switch(210, 580, 35, slider10, 0, 3, #l_lhz_a);
+  draw_vintage_switch(395, 580, 35, slider4, 0, 6, "kHz"); draw_vintage_switch(600, 580, 35, slider7, 0, 2, "kHz");
+  draw_vintage_knob(830, 580, 35, slider11, 0, 10, #l_sat);
+
+  draw_led_button(730, 430, 12, slider12 == 0, "TUBE"); draw_led_button(780, 430, 12, slider12 == 1, "TAPE");
+  draw_led_button(830, 430, 12, slider12 == 2, "TRANS"); draw_led_button(730, 580, 12, slider13 == 1, "ON");
+
+  function in_circle(cx, cy, r) ( (mouse_x-cx)^2 + (mouse_y-cy)^2 <= r^2 );
+  mx = mouse_x; my = mouse_y; mouse_cap_now = mouse_cap; mouse_clicked = (mouse_cap_now&1) && !(mouse_prev_cap&1); fine = (mouse_cap_now&8) ? 20.0 : 1.0;
+  dbl_click_timer > 0 ? dbl_click_timer -= 1;
+
+  function handle_ctrl(id, cx, cy, r, val, def) (
+    cx = cx * sc + ofs_x; cy = cy * sc + ofs_y; r = r * sc;
+    in_circle(cx, cy, r) ? (
+      (dbl_click_timer > 0 && dbl_click_ctrl == id) ? ( val = def; ui_active_ctrl = 0; dbl_click_timer = 0; update_dsp = 1; ) : ( ui_active_ctrl = id; ui_drag_start_y = my; ui_drag_start_v = val; dbl_click_timer = 15; dbl_click_ctrl = id; );
+    ); val;
+  );
+
+  mouse_clicked ? (
+    slider2 = handle_ctrl(2, 100, 430, 35, slider2, 0); slider3 = handle_ctrl(3, 210, 430, 35, slider3, 0);
+    slider5 = handle_ctrl(5, 340, 430, 35, slider5, 0); slider6 = handle_ctrl(6, 450, 430, 35, slider6, 0);
+    slider8 = handle_ctrl(8, 600, 430, 35, slider8, 0); slider11= handle_ctrl(11,830, 580, 35, slider11, 0); 
+    slider9 = handle_ctrl(9, 960, 430, 35, slider9, 5); slider1 = handle_ctrl(1, 100, 580, 35, slider1, 1);
+    slider10= handle_ctrl(10,210, 580, 35, slider10, 3); slider4 = handle_ctrl(4, 395, 580, 35, slider4, 4);
+    slider7 = handle_ctrl(7, 600, 580, 35, slider7, 0);
+
+    in_circle(730*sc+ofs_x, 430*sc+ofs_y, 12*sc) ? slider12 = 0;
+    in_circle(780*sc+ofs_x, 430*sc+ofs_y, 12*sc) ? slider12 = 1;
+    in_circle(830*sc+ofs_x, 430*sc+ofs_y, 12*sc) ? slider12 = 2;
+    in_circle(730*sc+ofs_x, 580*sc+ofs_y, 12*sc) ? (slider13 = !slider13; update_dsp = 1;);
+  );
+
+  ui_active_ctrl > 0 && (mouse_cap_now&1) ? (
+    delta = (ui_drag_start_y - my) / 15 / fine;
+    ui_active_ctrl == 2 ? slider2 = min(max(ui_drag_start_v + delta, 0), 10);
+    ui_active_ctrl == 3 ? slider3 = min(max(ui_drag_start_v + delta, 0), 10);
+    ui_active_ctrl == 5 ? slider5 = min(max(ui_drag_start_v + delta, 0), 10);
+    ui_active_ctrl == 6 ? slider6 = min(max(ui_drag_start_v + delta, 0), 10);
+    ui_active_ctrl == 8 ? slider8 = min(max(ui_drag_start_v + delta, 0), 10);
+    ui_active_ctrl == 11? slider11= min(max(ui_drag_start_v + delta, 0), 10);
+    ui_active_ctrl == 9 ? slider9 = min(max(ui_drag_start_v + delta, 0), 10);
+    
+    ui_active_ctrl == 1 ? slider1 = min(max(floor(ui_drag_start_v + (ui_drag_start_y - my)/40 + 0.5), 0), 3);
+    ui_active_ctrl == 10? slider10= min(max(floor(ui_drag_start_v + (ui_drag_start_y - my)/40 + 0.5), 0), 3);
+    ui_active_ctrl == 4 ? slider4 = min(max(floor(ui_drag_start_v + (ui_drag_start_y - my)/30 + 0.5), 0), 6);
+    ui_active_ctrl == 7 ? slider7 = min(max(floor(ui_drag_start_v + (ui_drag_start_y - my)/40 + 0.5), 0), 2);
+    
+    slider_automate(slider(ui_active_ctrl)); update_dsp = 1; 
+  );
+
+  !(mouse_cap_now&1) ? ui_active_ctrl = 0; mouse_prev_cap = mouse_cap_now;
