@@ -2,7 +2,7 @@
 <index version="1" name="REISR">
   <category name="Spectrum Analizer (Multimeter)">
     <reapack name="SpectrumAnalizer.jsfx" type="effect" desc="Spectrum Analizer (Multimeter)">
-      <version name="2.1.0" author="Israel Torres Mayoral" time="2026-04-02T22:00:17.000Z">
+      <version name="2.5.1" author="Israel Torres Mayoral" time="2026-04-08T08:28:48.000Z">
         <changelog></changelog>
         <source>https://raw.githubusercontent.com/israelftci/REISR/refs/heads/main/SpectrumAnalizer.jsfx</source>
       </version>
